@@ -32,9 +32,7 @@ before asking new questions. It very well might be that this was already
 addressed or answered before.
 
 bpf@vger.kernel.org is monitored by many more people and they will happily try
-to help you with whatever issue you have. This repository's PRs and issues
-should be opened only for dealing with issues pertaining to specific way this
-libbpf mirror repo is set up and organized.
+to help you with whatever issue you have. 
 
 Build
 [![Github Actions Builds & Tests](https://github.com/libbpf/libbpf/actions/workflows/test.yml/badge.svg)](https://github.com/libbpf/libbpf/actions/workflows/test.yml)
