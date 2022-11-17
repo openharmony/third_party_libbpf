@@ -15,7 +15,22 @@
 #include <linux/kernel.h>
 #include <linux/err.h>
 #include <linux/btf.h>
+
+#ifdef HAVE_LIBELF
 #include <gelf.h>
+#endif
+
+#ifdef HAVE_ELFIO
+#include "elfio_c_wrapper.h"
+
+typedef struct Elf64_Ehdr Elf64_Ehdr;
+typedef struct Elf64_Shdr Elf64_Shdr;
+typedef struct {
+  void *d_buf;
+  size_t d_size;
+} Elf_Data;
+#endif
+
 #include "btf.h"
 #include "bpf.h"
 #include "libbpf.h"
@@ -885,22 +900,50 @@ struct btf *btf__new(const void *data, __u32 size)
 	return libbpf_ptr(btf_new(data, size, NULL));
 }
 
+#ifdef HAVE_ELFIO
+static Elf64_Shdr *elf_sec_hdr_by_idx(pelfio_t elf, size_t idx, Elf64_Shdr *sheader)
+{
+	psection_t psection = elfio_get_section_by_index(elf, idx);
+
+	sheader->sh_name = elfio_section_get_name_string_offset(psection);
+	sheader->sh_type = elfio_section_get_type(psection);
+	sheader->sh_flags = elfio_section_get_flags(psection);
+	sheader->sh_addr = elfio_section_get_address(psection);
+	sheader->sh_offset = elfio_section_get_offset(psection);
+	sheader->sh_size = elfio_section_get_size(psection);
+	sheader->sh_link = elfio_section_get_link(psection);
+	sheader->sh_info = elfio_section_get_info(psection);
+	sheader->sh_addralign = elfio_section_get_addr_align(psection);
+	sheader->sh_entsize = elfio_section_get_entry_size(psection);
+
+	return sheader;
+}
+#endif
+
 static struct btf *btf_parse_elf(const char *path, struct btf *base_btf,
 				 struct btf_ext **btf_ext)
 {
 	Elf_Data *btf_data = NULL, *btf_ext_data = NULL;
 	int err = 0, fd = -1, idx = 0;
 	struct btf *btf = NULL;
+#ifdef HAVE_LIBELF
 	Elf_Scn *scn = NULL;
 	Elf *elf = NULL;
 	GElf_Ehdr ehdr;
+#elif defined HAVE_ELFIO
+	pelfio_t elf;
+	Elf64_Ehdr ehdr;
+	Elf_Data btf_data_temp, btf_ext_data_temp;
+#endif
 	size_t shstrndx;
 
+#ifdef HAVE_LIBELF
 	if (elf_version(EV_CURRENT) == EV_NONE) {
 		pr_warn("failed to init libelf for %s\n", path);
 		return ERR_PTR(-LIBBPF_ERRNO__LIBELF);
 	}
 
+#endif
 	fd = open(path, O_RDONLY | O_CLOEXEC);
 	if (fd < 0) {
 		err = -errno;
@@ -910,45 +953,96 @@ static struct btf *btf_parse_elf(const char *path, struct btf *base_btf,
 
 	err = -LIBBPF_ERRNO__FORMAT;
 
+#ifdef HAVE_LIBELF
 	elf = elf_begin(fd, ELF_C_READ, NULL);
+#elif defined HAVE_ELFIO
+	elf = elfio_new();
+	if (!elfio_load(elf, path)) {
+		printf( "Can't load ELF file\n" );
+		goto done;
+    }
+#endif
 	if (!elf) {
 		pr_warn("failed to open %s as ELF file\n", path);
 		goto done;
 	}
+
+#ifdef HAVE_LIBELF
 	if (!gelf_getehdr(elf, &ehdr)) {
+#elif defined HAVE_ELFIO
+	ssize_t nread = read(fd, &ehdr, sizeof(Elf64_Ehdr));
+	if(nread != sizeof(Elf64_Ehdr)) {
+#endif
 		pr_warn("failed to get EHDR from %s\n", path);
 		goto done;
 	}
 
+#ifdef HAVE_LIBELF
 	if (elf_getshdrstrndx(elf, &shstrndx)) {
+#elif defined HAVE_ELFIO
+	shstrndx = elfio_get_section_name_str_index(elf);
+	if(shstrndx < 0) {
+#endif
 		pr_warn("failed to get section names section index for %s\n",
 			path);
 		goto done;
 	}
 
+#ifdef HAVE_LIBELF
 	if (!elf_rawdata(elf_getscn(elf, shstrndx), NULL)) {
 		pr_warn("failed to get e_shstrndx from %s\n", path);
 		goto done;
 	}
+#endif
 
+#if defined HAVE_LIBELF
 	while ((scn = elf_nextscn(elf, scn)) != NULL) {
 		GElf_Shdr sh;
+#elif defined HAVE_ELFIO
+	psection_t psection = elfio_get_section_by_name(elf, ".shstrtab");
+	if (!psection )
+		goto done;
+
+	pstring_t pstring = elfio_string_section_accessor_new(psection);
+	if (!pstring )
+		goto done;
+
+	int secno = elfio_get_sections_num(elf);
+
+	for ( int i = 0; i < secno; i++ ) {
+		Elf64_Shdr sh;
+#endif
 		char *name;
 
 		idx++;
+#if defined HAVE_LIBELF
 		if (gelf_getshdr(scn, &sh) != &sh) {
+#elif defined HAVE_ELFIO
+		if (!elf_sec_hdr_by_idx(elf, i, &sh)) {
+#endif
 			pr_warn("failed to get section(%d) header from %s\n",
 				idx, path);
 			goto done;
 		}
+#if defined HAVE_LIBELF
 		name = elf_strptr(elf, shstrndx, sh.sh_name);
+#elif defined HAVE_ELFIO
+		name = elfio_string_get_string(pstring, sh.sh_name);
+#endif
 		if (!name) {
 			pr_warn("failed to get section(%d) name from %s\n",
 				idx, path);
 			goto done;
 		}
 		if (strcmp(name, BTF_ELF_SEC) == 0) {
+#if defined HAVE_LIBELF
 			btf_data = elf_getdata(scn, 0);
+#elif defined HAVE_ELFIO
+			psection_t psection_index = elfio_get_section_by_index(elf, i);
+			btf_data_temp.d_buf = (void*)elfio_section_get_data(psection_index);
+			btf_data_temp.d_size = elfio_section_get_size(psection_index);
+			btf_data = &btf_data_temp;
+#endif
 			if (!btf_data) {
 				pr_warn("failed to get section(%d, %s) data from %s\n",
 					idx, name, path);
@@ -956,7 +1050,14 @@ static struct btf *btf_parse_elf(const char *path, struct btf *base_btf,
 			}
 			continue;
 		} else if (btf_ext && strcmp(name, BTF_EXT_ELF_SEC) == 0) {
+#if defined HAVE_LIBELF
 			btf_ext_data = elf_getdata(scn, 0);
+#elif defined HAVE_ELFIO
+			psection_t psection_index = elfio_get_section_by_index(elf, i);
+			btf_ext_data_temp.d_buf = (void*)elfio_section_get_data(psection_index);
+			btf_ext_data_temp.d_size = elfio_section_get_size(psection_index);
+			btf_ext_data = &btf_ext_data_temp;
+#endif
 			if (!btf_ext_data) {
 				pr_warn("failed to get section(%d, %s) data from %s\n",
 					idx, name, path);
@@ -977,7 +1078,11 @@ static struct btf *btf_parse_elf(const char *path, struct btf *base_btf,
 	if (err)
 		goto done;
 
+#ifdef HAVE_LIBELF
 	switch (gelf_getclass(elf)) {
+#elif defined HAVE_ELFIO
+	switch (elfio_get_class(elf)) {
+#endif
 	case ELFCLASS32:
 		btf__set_pointer_size(btf, 4);
 		break;
@@ -999,7 +1104,13 @@ static struct btf *btf_parse_elf(const char *path, struct btf *base_btf,
 	}
 done:
 	if (elf)
+#ifdef HAVE_LIBELF
 		elf_end(elf);
+#elif defined HAVE_ELFIO
+		elfio_delete(elf);
+	if(pstring)
+		elfio_string_section_accessor_delete(pstring);
+#endif
 	close(fd);
 
 	if (!err)
@@ -4683,7 +4794,9 @@ struct btf *btf__load_vmlinux_btf(void)
 		if (locations[i].raw_btf)
 			btf = btf__parse_raw(path);
 		else
+#ifdef HAVE_LIBELF
 			btf = btf__parse_elf(path, NULL);
+#endif
 		err = libbpf_get_error(btf);
 		pr_debug("loading kernel BTF '%s': %d\n", path, err);
 		if (err)

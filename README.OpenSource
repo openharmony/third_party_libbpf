@@ -1,0 +1,11 @@
+[
+  {
+    "Name": "libbpf",
+    "License": "LGPL-2.1 OR BSD-2-Clause",
+    "License File": "LICENSE",
+    "Version Number": "0.7",
+    "Owner": "xiazhonglin@huawei.com",
+    "Upstream URL": "https://github.com/libbpf/libbpf",
+    "Description": "a third party library to use eBPF"
+  }
+]
