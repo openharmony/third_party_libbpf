@@ -924,7 +924,7 @@ static struct btf *btf_parse_elf(const char *path, struct btf *base_btf,
 				 struct btf_ext **btf_ext)
 {
 	Elf_Data *btf_data = NULL, *btf_ext_data = NULL;
-	int err = 0, fd = -1, idx = 0;
+	int err = 0, idx = 0;
 	struct btf *btf = NULL;
 #ifdef HAVE_LIBELF
 	Elf_Scn *scn = NULL;
@@ -944,7 +944,7 @@ static struct btf *btf_parse_elf(const char *path, struct btf *base_btf,
 	}
 
 #endif
-	fd = open(path, O_RDONLY | O_CLOEXEC);
+	int fd = open(path, O_RDONLY | O_CLOEXEC);
 	if (fd < 0) {
 		err = -errno;
 		pr_warn("failed to open %s: %s\n", path, strerror(errno));
@@ -981,7 +981,7 @@ static struct btf *btf_parse_elf(const char *path, struct btf *base_btf,
 	if (elf_getshdrstrndx(elf, &shstrndx)) {
 #elif defined HAVE_ELFIO
 	shstrndx = elfio_get_section_name_str_index(elf);
-	if(shstrndx < 0) {
+	if(shstrndx == 0) {
 #endif
 		pr_warn("failed to get section names section index for %s\n",
 			path);
