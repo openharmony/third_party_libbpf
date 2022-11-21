@@ -44,8 +44,11 @@
 #include <sys/vfs.h>
 #include <sys/utsname.h>
 #include <sys/resource.h>
+#ifdef HAVE_LIBELF
 #include <libelf.h>
 #include <gelf.h>
+#endif
+
 #include <zlib.h>
 
 #include "libbpf.h"
@@ -55,6 +58,27 @@
 #include "libbpf_internal.h"
 #include "hashmap.h"
 #include "bpf_gen_internal.h"
+
+#ifdef HAVE_ELFIO
+#include "elfio_c_wrapper.h"
+#include <linux/memfd.h>
+#include <sys/syscall.h>
+#include <limits.h>
+
+typedef struct Elf64_Ehdr Elf64_Ehdr;
+typedef struct Elf64_Shdr Elf64_Shdr;
+typedef struct Elf64_Sym Elf64_Sym;
+typedef struct Elf64_Rel Elf64_Rel;
+typedef struct {
+  void *d_buf;
+  size_t d_size;
+} Elf_Data;
+
+#define ELF64_ST_TYPE(val) ELF_ST_TYPE (val)
+#define ELF64_ST_BIND(val) ELF_ST_BIND (val)
+#define elf_errmsg(val) "error"
+
+#endif
 
 #ifndef BPF_FS_MAGIC
 #define BPF_FS_MAGIC		0xcafe4a11
@@ -464,7 +488,12 @@ enum sec_type {
 
 struct elf_sec_desc {
 	enum sec_type sec_type;
+#if defined HAVE_LIBELF
 	Elf64_Shdr *shdr;
+#elif defined HAVE_ELFIO
+	psection_t psection;
+	Elf_Data realdata;
+#endif
 	Elf_Data *data;
 };
 
@@ -472,7 +501,16 @@ struct elf_state {
 	int fd;
 	const void *obj_buf;
 	size_t obj_buf_sz;
+#if defined HAVE_LIBELF
 	Elf *elf;
+#elif defined HAVE_ELFIO
+	pelfio_t elf;
+	Elf64_Ehdr eheader;
+	pstring_t shstring;
+	pstring_t strstring;
+	Elf_Data realsymbols;
+	Elf_Data realst_ops_data;
+#endif
 	Elf64_Ehdr *ehdr;
 	Elf_Data *symbols;
 	Elf_Data *st_ops_data;
@@ -555,11 +593,26 @@ struct bpf_object {
 
 static const char *elf_sym_str(const struct bpf_object *obj, size_t off);
 static const char *elf_sec_str(const struct bpf_object *obj, size_t off);
+#ifdef HAVE_LIBELF
 static Elf_Scn *elf_sec_by_idx(const struct bpf_object *obj, size_t idx);
 static Elf_Scn *elf_sec_by_name(const struct bpf_object *obj, const char *name);
+#endif
+#if defined HAVE_LIBELF
 static Elf64_Shdr *elf_sec_hdr(const struct bpf_object *obj, Elf_Scn *scn);
+#elif defined HAVE_ELFIO
+static Elf64_Shdr *elf_sec_hdr_by_idx(const struct bpf_object *obj, size_t idx, Elf64_Shdr *sheader);
+#endif
+#if defined HAVE_LIBELF
 static const char *elf_sec_name(const struct bpf_object *obj, Elf_Scn *scn);
+#elif defined HAVE_ELFIO
+static const char *elf_sec_name_by_idx(const struct bpf_object *obj, size_t idx);
+#endif
+#if defined HAVE_LIBELF
 static Elf_Data *elf_sec_data(const struct bpf_object *obj, Elf_Scn *scn);
+#elif defined HAVE_ELFIO
+static Elf_Data *elf_sec_data_by_name(const struct bpf_object *obj, const char *name, Elf_Data *data);
+static Elf_Data *elf_sec_data_by_idx(const struct bpf_object *obj, size_t idx, Elf_Data *data);
+#endif
 static Elf64_Sym *elf_sym_by_idx(const struct bpf_object *obj, size_t idx);
 static Elf64_Rel *elf_rel_by_idx(Elf_Data *data, size_t idx);
 
@@ -1224,7 +1277,17 @@ static void bpf_object__elf_finish(struct bpf_object *obj)
 		return;
 
 	if (obj->efile.elf) {
+#if defined HAVE_LIBELF
 		elf_end(obj->efile.elf);
+#elif defined HAVE_ELFIO
+		if (obj->efile.shstring) {
+			elfio_string_section_accessor_delete(obj->efile.shstring);
+		}
+		if (obj->efile.strstring) {
+			elfio_string_section_accessor_delete(obj->efile.strstring);
+		}
+		elfio_delete(obj->efile.elf);
+#endif
 		obj->efile.elf = NULL;
 	}
 	obj->efile.symbols = NULL;
@@ -1241,7 +1304,11 @@ static int bpf_object__elf_init(struct bpf_object *obj)
 {
 	Elf64_Ehdr *ehdr;
 	int err = 0;
+#ifdef HAVE_LIBELF
 	Elf *elf;
+#elif defined HAVE_ELFIO
+	pelfio_t elf;
+#endif
 
 	if (obj->efile.elf) {
 		pr_warn("elf: init internal error\n");
@@ -1253,7 +1320,17 @@ static int bpf_object__elf_init(struct bpf_object *obj)
 		 * obj_buf should have been validated by
 		 * bpf_object__open_buffer().
 		 */
+#ifdef HAVE_LIBELF
 		elf = elf_memory((char *)obj->efile.obj_buf, obj->efile.obj_buf_sz);
+#elif defined HAVE_ELFIO
+		char  memfd_path[PATH_MAX] = {0};
+		elf = elfio_new();
+		int fdm = syscall(__NR_memfd_create, "bpfelf", MFD_CLOEXEC);
+		ftruncate(fdm, obj->efile.obj_buf_sz);
+		write(fdm, (char *)obj->efile.obj_buf, obj->efile.obj_buf_sz);
+		snprintf(memfd_path, PATH_MAX, "/proc/self/fd/%d", fdm);
+		elfio_load(elf, memfd_path);
+#endif
 	} else {
 		obj->efile.fd = open(obj->path, O_RDONLY | O_CLOEXEC);
 		if (obj->efile.fd < 0) {
@@ -1265,7 +1342,9 @@ static int bpf_object__elf_init(struct bpf_object *obj)
 			return err;
 		}
 
+#ifdef HAVE_LIBELF
 		elf = elf_begin(obj->efile.fd, ELF_C_READ_MMAP, NULL);
+#endif
 	}
 
 	if (!elf) {
@@ -1276,6 +1355,7 @@ static int bpf_object__elf_init(struct bpf_object *obj)
 
 	obj->efile.elf = elf;
 
+#ifdef HAVE_LIBELF
 	if (elf_kind(elf) != ELF_K_ELF) {
 		err = -LIBBPF_ERRNO__FORMAT;
 		pr_warn("elf: '%s' is not a proper ELF object\n", obj->path);
@@ -1283,18 +1363,26 @@ static int bpf_object__elf_init(struct bpf_object *obj)
 	}
 
 	if (gelf_getclass(elf) != ELFCLASS64) {
+#elif defined HAVE_ELFIO
+	if (elfio_get_class(elf) != ELFCLASS64 ) {
+#endif
 		err = -LIBBPF_ERRNO__FORMAT;
 		pr_warn("elf: '%s' is not a 64-bit ELF object\n", obj->path);
 		goto errout;
 	}
 
+#ifdef HAVE_LIBELF
 	obj->efile.ehdr = ehdr = elf64_getehdr(elf);
+#elif defined HAVE_ELFIO
+	obj->efile.ehdr = ehdr = (Elf64_Ehdr*)obj->efile.obj_buf;
+#endif
 	if (!obj->efile.ehdr) {
 		pr_warn("elf: failed to get ELF header from %s: %s\n", obj->path, elf_errmsg(-1));
 		err = -LIBBPF_ERRNO__FORMAT;
 		goto errout;
 	}
 
+#ifdef HAVE_LIBELF
 	if (elf_getshdrstrndx(elf, &obj->efile.shstrndx)) {
 		pr_warn("elf: failed to get section names section index for %s: %s\n",
 			obj->path, elf_errmsg(-1));
@@ -1309,6 +1397,9 @@ static int bpf_object__elf_init(struct bpf_object *obj)
 		err = -LIBBPF_ERRNO__FORMAT;
 		goto errout;
 	}
+#elif defined HAVE_ELFIO
+     obj->efile.shstrndx = elfio_get_section_name_str_index(elf);
+#endif
 
 	/* Old LLVM set e_machine to EM_NONE */
 	if (ehdr->e_type != ET_REL || (ehdr->e_machine && ehdr->e_machine != EM_BPF)) {
@@ -1376,14 +1467,22 @@ static int find_elf_sec_sz(const struct bpf_object *obj, const char *name, __u32
 {
 	int ret = -ENOENT;
 	Elf_Data *data;
+#ifdef HAVE_LIBELF
 	Elf_Scn *scn;
+#endif
 
 	*size = 0;
 	if (!name)
 		return -EINVAL;
 
+#if defined HAVE_LIBELF
 	scn = elf_sec_by_name(obj, name);
 	data = elf_sec_data(obj, scn);
+#elif defined HAVE_ELFIO
+	Elf_Data realdata;
+	data = &realdata;
+	data = elf_sec_data_by_name(obj, name, data);
+#endif
 	if (data) {
 		ret = 0; /* found it */
 		*size = data->d_size;
@@ -1592,7 +1691,11 @@ static int bpf_object__init_global_data_maps(struct bpf_object *obj)
 
 		switch (sec_desc->sec_type) {
 		case SEC_DATA:
+#if defined HAVE_LIBELF
 			sec_name = elf_sec_name(obj, elf_sec_by_idx(obj, sec_idx));
+#elif defined HAVE_ELFIO
+			sec_name = elf_sec_name_by_idx(obj, sec_idx);
+#endif
 			err = bpf_object__init_internal_map(obj, LIBBPF_MAP_DATA,
 							    sec_name, sec_idx,
 							    sec_desc->data->d_buf,
@@ -1600,14 +1703,22 @@ static int bpf_object__init_global_data_maps(struct bpf_object *obj)
 			break;
 		case SEC_RODATA:
 			obj->has_rodata = true;
+#if defined HAVE_LIBELF
 			sec_name = elf_sec_name(obj, elf_sec_by_idx(obj, sec_idx));
+#elif defined HAVE_ELFIO
+			sec_name = elf_sec_name_by_idx(obj, sec_idx);
+#endif
 			err = bpf_object__init_internal_map(obj, LIBBPF_MAP_RODATA,
 							    sec_name, sec_idx,
 							    sec_desc->data->d_buf,
 							    sec_desc->data->d_size);
 			break;
 		case SEC_BSS:
+#if defined HAVE_LIBELF
 			sec_name = elf_sec_name(obj, elf_sec_by_idx(obj, sec_idx));
+#elif defined HAVE_ELFIO
+			sec_name = elf_sec_name_by_idx(obj, sec_idx);
+#endif
 			err = bpf_object__init_internal_map(obj, LIBBPF_MAP_BSS,
 							    sec_name, sec_idx,
 							    NULL,
@@ -1928,7 +2039,9 @@ static int bpf_object__init_user_maps(struct bpf_object *obj, bool strict)
 	Elf_Data *symbols = obj->efile.symbols;
 	int i, map_def_sz = 0, nr_maps = 0, nr_syms;
 	Elf_Data *data = NULL;
+#ifdef HAVE_LIBELF
 	Elf_Scn *scn;
+#endif
 
 	if (obj->efile.maps_shndx < 0)
 		return 0;
@@ -1941,9 +2054,19 @@ static int bpf_object__init_user_maps(struct bpf_object *obj, bool strict)
 	if (!symbols)
 		return -EINVAL;
 
+#if defined HAVE_LIBELF
 	scn = elf_sec_by_idx(obj, obj->efile.maps_shndx);
 	data = elf_sec_data(obj, scn);
+#elif defined HAVE_ELFIO
+	Elf_Data realdata;
+	data = elf_sec_data_by_idx(obj, obj->efile.maps_shndx, &realdata);
+#endif
+
+#if defined HAVE_LIBELF
 	if (!scn || !data) {
+#elif defined HAVE_ELFIO
+	if (!data) {
+#endif
 		pr_warn("elf: failed to get legacy map definitions for %s\n",
 			obj->path);
 		return -EINVAL;
@@ -2552,14 +2675,22 @@ static int bpf_object__init_user_btf_maps(struct bpf_object *obj, bool strict,
 	const struct btf_type *t;
 	const char *name;
 	Elf_Data *data;
+#ifdef HAVE_LIBELF
 	Elf_Scn *scn;
+#endif
 
 	if (obj->efile.btf_maps_shndx < 0)
 		return 0;
 
+#if defined HAVE_LIBELF
 	scn = elf_sec_by_idx(obj, obj->efile.btf_maps_shndx);
 	data = elf_sec_data(obj, scn);
 	if (!scn || !data) {
+#elif defined HAVE_ELFIO
+	Elf_Data realdata;
+	data = elf_sec_data_by_idx(obj, obj->efile.btf_maps_shndx, &realdata);
+	if (!data) {
+#endif
 		pr_warn("elf: failed to get %s map definitions for %s\n",
 			MAPS_ELF_SEC, obj->path);
 		return -EINVAL;
@@ -2619,7 +2750,12 @@ static bool section_have_execinstr(struct bpf_object *obj, int idx)
 {
 	Elf64_Shdr *sh;
 
+#if defined HAVE_LIBELF
 	sh = elf_sec_hdr(obj, elf_sec_by_idx(obj, idx));
+#elif defined HAVE_ELFIO
+	Elf64_Shdr header;
+	sh = elf_sec_hdr_by_idx(obj, idx, &header);
+#endif
 	if (!sh)
 		return false;
 
@@ -3051,7 +3187,11 @@ static const char *elf_sym_str(const struct bpf_object *obj, size_t off)
 {
 	const char *name;
 
+#if defined HAVE_LIBELF
 	name = elf_strptr(obj->efile.elf, obj->efile.strtabidx, off);
+#elif defined HAVE_ELFIO
+	name = elfio_string_get_string(obj->efile.strstring, off);
+#endif
 	if (!name) {
 		pr_warn("elf: failed to get section name string at offset %zu from %s: %s\n",
 			off, obj->path, elf_errmsg(-1));
@@ -3065,7 +3205,11 @@ static const char *elf_sec_str(const struct bpf_object *obj, size_t off)
 {
 	const char *name;
 
+#if defined HAVE_LIBELF
 	name = elf_strptr(obj->efile.elf, obj->efile.shstrndx, off);
+#elif defined HAVE_ELFIO
+	name = elfio_string_get_string(obj->efile.shstring, off);
+#endif
 	if (!name) {
 		pr_warn("elf: failed to get section name string at offset %zu from %s: %s\n",
 			off, obj->path, elf_errmsg(-1));
@@ -3075,6 +3219,7 @@ static const char *elf_sec_str(const struct bpf_object *obj, size_t off)
 	return name;
 }
 
+#ifdef HAVE_LIBELF
 static Elf_Scn *elf_sec_by_idx(const struct bpf_object *obj, size_t idx)
 {
 	Elf_Scn *scn;
@@ -3146,6 +3291,44 @@ static const char *elf_sec_name(const struct bpf_object *obj, Elf_Scn *scn)
 	return name;
 }
 
+#elif defined HAVE_ELFIO
+static Elf64_Shdr *elf_sec_hdr_by_idx(const struct bpf_object *obj, size_t idx, Elf64_Shdr *sheader)
+{
+	psection_t psection = elfio_get_section_by_index(obj->efile.elf, idx);
+
+	sheader->sh_name = elfio_section_get_name_string_offset(psection);
+	sheader->sh_type = elfio_section_get_type(psection);
+	sheader->sh_flags = elfio_section_get_flags(psection);
+	sheader->sh_addr = elfio_section_get_address(psection);
+	sheader->sh_offset = elfio_section_get_offset(psection);
+	sheader->sh_size = elfio_section_get_size(psection);
+	sheader->sh_link = elfio_section_get_link(psection);
+	sheader->sh_info = elfio_section_get_info(psection);
+	sheader->sh_addralign = elfio_section_get_addr_align(psection);
+	sheader->sh_entsize = elfio_section_get_entry_size(psection);
+
+	return sheader;
+}
+
+static const char *elf_sec_name_by_idx(const struct bpf_object *obj, size_t idx)
+{
+	const char *name;
+	Elf64_Shdr sh;
+
+	elf_sec_hdr_by_idx(obj, idx, &sh);
+
+	name = elf_sec_str(obj, sh.sh_name);
+	if (!name) {
+		pr_warn("elf: failed to get section(%zu) name from %s: %s\n",
+			idx, obj->path, elf_errmsg(-1));
+		return NULL;
+	}
+
+	return name;
+}
+#endif
+
+#if defined HAVE_LIBELF
 static Elf_Data *elf_sec_data(const struct bpf_object *obj, Elf_Scn *scn)
 {
 	Elf_Data *data;
@@ -3163,6 +3346,28 @@ static Elf_Data *elf_sec_data(const struct bpf_object *obj, Elf_Scn *scn)
 
 	return data;
 }
+
+#elif defined HAVE_ELFIO
+static Elf_Data *elf_sec_data_by_name(const struct bpf_object *obj, const char *name, Elf_Data *data)
+{
+	pelfio_t elf = obj->efile.elf;
+	psection_t psection_name = elfio_get_section_by_name(elf, name);
+	data->d_buf = (void*)elfio_section_get_data(psection_name);
+	data->d_size = elfio_section_get_size(psection_name);
+
+	return data;
+}
+
+static Elf_Data *elf_sec_data_by_idx(const struct bpf_object *obj, size_t idx, Elf_Data *data)
+{
+	pelfio_t elf = obj->efile.elf;
+	psection_t psection_index = elfio_get_section_by_index(elf, idx);
+	data->d_buf = (void*)elfio_section_get_data(psection_index);
+	data->d_size = elfio_section_get_size(psection_index);
+
+	return data;
+}
+#endif
 
 static Elf64_Sym *elf_sym_by_idx(const struct bpf_object *obj, size_t idx)
 {
@@ -3235,14 +3440,24 @@ static int cmp_progs(const void *_a, const void *_b)
 static int bpf_object__elf_collect(struct bpf_object *obj)
 {
 	struct elf_sec_desc *sec_desc;
+#if defined HAVE_LIBELF
 	Elf *elf = obj->efile.elf;
+#elif defined HAVE_ELFIO
+	pelfio_t elf = obj->efile.elf;
+#endif
 	Elf_Data *btf_ext_data = NULL;
 	Elf_Data *btf_data = NULL;
 	int idx = 0, err = 0;
 	const char *name;
 	Elf_Data *data;
+#ifdef HAVE_LIBELF
 	Elf_Scn *scn;
+#endif
 	Elf64_Shdr *sh;
+#ifdef HAVE_ELFIO
+	Elf64_Shdr secHeader = {0};
+	sh = &secHeader;
+#endif
 
 	/* ELF section indices are 0-based, but sec #0 is special "invalid"
 	 * section. e_shnum does include sec #0, so e_shnum is the necessary
@@ -3256,9 +3471,16 @@ static int bpf_object__elf_collect(struct bpf_object *obj)
 	/* a bunch of ELF parsing functionality depends on processing symbols,
 	 * so do the first pass and find the symbol table
 	 */
+#if defined HAVE_LIBELF
 	scn = NULL;
 	while ((scn = elf_nextscn(elf, scn)) != NULL) {
 		sh = elf_sec_hdr(obj, scn);
+#elif defined HAVE_ELFIO
+	int secno = elfio_get_sections_num(elf);
+    for ( int i = 0; i < secno; i++ ) {
+		Elf_Data realdata;
+		sh = elf_sec_hdr_by_idx(obj, i, sh);
+#endif
 		if (!sh)
 			return -LIBBPF_ERRNO__FORMAT;
 
@@ -3268,17 +3490,54 @@ static int bpf_object__elf_collect(struct bpf_object *obj)
 				return -LIBBPF_ERRNO__FORMAT;
 			}
 
+#if defined HAVE_LIBELF
 			data = elf_sec_data(obj, scn);
+#elif defined HAVE_ELFIO
+			data = elf_sec_data_by_idx(obj, i, &realdata);
+#endif
 			if (!data)
 				return -LIBBPF_ERRNO__FORMAT;
 
+#ifdef HAVE_LIBELF
 			idx = elf_ndxscn(scn);
+#endif
 
+#if defined HAVE_LIBELF
 			obj->efile.symbols = data;
+#elif defined HAVE_ELFIO
+			obj->efile.realsymbols.d_buf = data->d_buf;
+			obj->efile.realsymbols.d_size = data->d_size;
+			obj->efile.symbols = &(obj->efile.realsymbols);
+#endif
+
+#if defined HAVE_LIBELF
 			obj->efile.symbols_shndx = idx;
+#elif defined HAVE_ELFIO
+			obj->efile.symbols_shndx = i;
+#endif
 			obj->efile.strtabidx = sh->sh_link;
 		}
 	}
+
+#ifdef HAVE_ELFIO
+	pstring_t shstring;
+	pstring_t strstring;
+
+	psection_t psection = elfio_get_section_by_index(elf, obj->efile.strtabidx);
+	if (!psection)
+		return -LIBBPF_ERRNO__FORMAT;
+	strstring = elfio_string_section_accessor_new(psection);
+
+	psection = elfio_get_section_by_index(elf, obj->efile.shstrndx);
+	if (!psection)
+		return -LIBBPF_ERRNO__FORMAT;
+	shstring = elfio_string_section_accessor_new(psection);
+
+	if (!strstring || !shstring)
+		return -LIBBPF_ERRNO__FORMAT;
+	obj->efile.strstring = strstring;
+	obj->efile.shstring = shstring;
+#endif
 
 	if (!obj->efile.symbols) {
 		pr_warn("elf: couldn't find symbol table in %s, stripped object file?\n",
@@ -3286,12 +3545,28 @@ static int bpf_object__elf_collect(struct bpf_object *obj)
 		return -ENOENT;
 	}
 
+#ifdef HAVE_LIBELF
 	scn = NULL;
 	while ((scn = elf_nextscn(elf, scn)) != NULL) {
+#elif defined HAVE_ELFIO
+	for ( int i = 0; i < secno; i++ ) {
+		psection_t ptmpsection = elfio_get_section_by_index(elf, i);
+		elf_sec_hdr_by_idx(obj, i, sh);
+#endif
+
+#if defined HAVE_LIBELF
 		idx = elf_ndxscn(scn);
+#elif defined HAVE_ELFIO
+		idx = i;
+#endif
 		sec_desc = &obj->efile.secs[idx];
 
+#if defined HAVE_LIBELF
 		sh = elf_sec_hdr(obj, scn);
+#elif defined HAVE_ELFIO
+		sh = elf_sec_hdr_by_idx(obj, i, sh);
+#endif
+
 		if (!sh)
 			return -LIBBPF_ERRNO__FORMAT;
 
@@ -3302,7 +3577,11 @@ static int bpf_object__elf_collect(struct bpf_object *obj)
 		if (ignore_elf_section(sh, name))
 			continue;
 
+#if defined HAVE_LIBELF
 		data = elf_sec_data(obj, scn);
+#elif defined HAVE_ELFIO
+		data = elf_sec_data_by_idx(obj, i, &sec_desc->realdata);
+#endif
 		if (!data)
 			return -LIBBPF_ERRNO__FORMAT;
 
@@ -3343,15 +3622,37 @@ static int bpf_object__elf_collect(struct bpf_object *obj)
 			} else if (strcmp(name, DATA_SEC) == 0 ||
 				   str_has_pfx(name, DATA_SEC ".")) {
 				sec_desc->sec_type = SEC_DATA;
+#if defined HAVE_LIBELF
 				sec_desc->shdr = sh;
 				sec_desc->data = data;
+#elif defined HAVE_ELFIO
+				sec_desc->psection = ptmpsection;
+				sec_desc->realdata.d_buf = data->d_buf;
+				sec_desc->realdata.d_size = data->d_size;
+				sec_desc->data = &(sec_desc->realdata);
+#endif
 			} else if (strcmp(name, RODATA_SEC) == 0 ||
 				   str_has_pfx(name, RODATA_SEC ".")) {
 				sec_desc->sec_type = SEC_RODATA;
+#if defined HAVE_LIBELF
 				sec_desc->shdr = sh;
 				sec_desc->data = data;
+#elif defined HAVE_ELFIO
+				sec_desc->psection = ptmpsection;
+				sec_desc->realdata.d_buf = data->d_buf;
+				sec_desc->realdata.d_size = data->d_size;
+				sec_desc->data = &(sec_desc->realdata);
+#endif
+
 			} else if (strcmp(name, STRUCT_OPS_SEC) == 0) {
+
+#if defined HAVE_LIBELF
 				obj->efile.st_ops_data = data;
+#elif defined HAVE_ELFIO
+				obj->efile.realst_ops_data.d_buf = data->d_buf;
+				obj->efile.realst_ops_data.d_size = data->d_size;
+				obj->efile.st_ops_data = &(obj->efile.realst_ops_data);
+#endif
 				obj->efile.st_ops_shndx = idx;
 			} else {
 				pr_info("elf: skipping unrecognized data section(%d) %s\n",
@@ -3368,18 +3669,32 @@ static int bpf_object__elf_collect(struct bpf_object *obj)
 			if (!section_have_execinstr(obj, targ_sec_idx) &&
 			    strcmp(name, ".rel" STRUCT_OPS_SEC) &&
 			    strcmp(name, ".rel" MAPS_ELF_SEC)) {
+#if defined HAVE_LIBELF
 				pr_info("elf: skipping relo section(%d) %s for section(%d) %s\n",
 					idx, name, targ_sec_idx,
 					elf_sec_name(obj, elf_sec_by_idx(obj, targ_sec_idx)) ?: "<?>");
+#elif defined HAVE_ELFIO
+				pr_info("elf: skipping relo section(%d) %s for section(%d) %s\n",
+					idx, name, targ_sec_idx,
+					elf_sec_name_by_idx(obj, targ_sec_idx) ?: "<?>");
+#endif
 				continue;
 			}
 
 			sec_desc->sec_type = SEC_RELO;
+#if defined HAVE_LIBELF
 			sec_desc->shdr = sh;
+#elif defined HAVE_ELFIO
+			sec_desc->psection = ptmpsection;
+#endif
 			sec_desc->data = data;
 		} else if (sh->sh_type == SHT_NOBITS && strcmp(name, BSS_SEC) == 0) {
 			sec_desc->sec_type = SEC_BSS;
+#if defined HAVE_LIBELF
 			sec_desc->shdr = sh;
+#elif defined HAVE_ELFIO
+			sec_desc->psection = ptmpsection;
+#endif
 			sec_desc->data = data;
 		} else {
 			pr_info("elf: skipping section(%d) %s (size %zu)\n", idx, name,
@@ -3609,14 +3924,22 @@ static int bpf_object__collect_externs(struct bpf_object *obj)
 	struct extern_desc *ext;
 	int i, n, off, dummy_var_btf_id;
 	const char *ext_name, *sec_name;
+#ifdef HAVE_LIBELF
 	Elf_Scn *scn;
+#endif
 	Elf64_Shdr *sh;
+	Elf64_Shdr shheader;
 
 	if (!obj->efile.symbols)
 		return 0;
 
+#if defined HAVE_LIBELF
 	scn = elf_sec_by_idx(obj, obj->efile.symbols_shndx);
 	sh = elf_sec_hdr(obj, scn);
+#elif defined HAVE_ELFIO
+	sh = &shheader;
+	sh = elf_sec_hdr_by_idx(obj, obj->efile.symbols_shndx, sh);
+#endif
 	if (!sh || sh->sh_entsize != sizeof(Elf64_Sym))
 		return -LIBBPF_ERRNO__FORMAT;
 
@@ -3949,7 +4272,11 @@ static int bpf_program__record_reloc(struct bpf_program *prog,
 		}
 		/* text_shndx can be 0, if no default "main" program exists */
 		if (!shdr_idx || shdr_idx != obj->efile.text_shndx) {
+#if defined HAVE_LIBELF
 			sym_sec_name = elf_sec_name(obj, elf_sec_by_idx(obj, shdr_idx));
+#elif defined HAVE_ELFIO
+			sym_sec_name = elf_sec_name_by_idx(obj, shdr_idx);
+#endif
 			pr_warn("prog '%s': bad call relo against '%s' in section '%s'\n",
 				prog->name, sym_name, sym_sec_name);
 			return -LIBBPF_ERRNO__RELOC;
@@ -3989,7 +4316,11 @@ static int bpf_program__record_reloc(struct bpf_program *prog,
 	}
 
 	type = bpf_object__section_to_libbpf_map_type(obj, shdr_idx);
+#if defined HAVE_LIBELF
 	sym_sec_name = elf_sec_name(obj, elf_sec_by_idx(obj, shdr_idx));
+#elif defined HAVE_ELFIO
+	sym_sec_name = elf_sec_name_by_idx(obj, shdr_idx);
+#endif
 
 	/* generic map reference relocation */
 	if (type == LIBBPF_MAP_UNSPEC) {
@@ -4090,7 +4421,9 @@ bpf_object__collect_prog_relos(struct bpf_object *obj, Elf64_Shdr *shdr, Elf_Dat
 	int err, i, nrels;
 	const char *sym_name;
 	__u32 insn_idx;
+#ifdef HAVE_LIBELF
 	Elf_Scn *scn;
+#endif
 	Elf_Data *scn_data;
 	Elf64_Sym *sym;
 	Elf64_Rel *rel;
@@ -4098,6 +4431,7 @@ bpf_object__collect_prog_relos(struct bpf_object *obj, Elf64_Shdr *shdr, Elf_Dat
 	if (sec_idx >= obj->efile.sec_cnt)
 		return -EINVAL;
 
+#if defined HAVE_LIBELF
 	scn = elf_sec_by_idx(obj, sec_idx);
 	scn_data = elf_sec_data(obj, scn);
 
@@ -4105,6 +4439,15 @@ bpf_object__collect_prog_relos(struct bpf_object *obj, Elf64_Shdr *shdr, Elf_Dat
 	sec_name = elf_sec_name(obj, scn);
 	if (!relo_sec_name || !sec_name)
 		return -EINVAL;
+#elif defined HAVE_ELFIO
+	Elf_Data realdata;
+	scn_data = elf_sec_data_by_idx(obj, sec_idx, &realdata);
+
+	relo_sec_name = elf_sec_str(obj, shdr->sh_name);
+	sec_name = elf_sec_name_by_idx(obj, sec_idx);
+	if (!relo_sec_name || !sec_name)
+		return -EINVAL;
+#endif
 
 	pr_debug("sec '%s': collecting relocation for section(%zu) '%s'\n",
 		 relo_sec_name, sec_idx, sec_name);
@@ -4145,7 +4488,11 @@ bpf_object__collect_prog_relos(struct bpf_object *obj, Elf64_Shdr *shdr, Elf_Dat
 		 * instead
 		 */
 		if (ELF64_ST_TYPE(sym->st_info) == STT_SECTION && sym->st_name == 0)
+#if defined HAVE_LIBELF
 			sym_name = elf_sec_name(obj, elf_sec_by_idx(obj, sym->st_shndx));
+#elif defined HAVE_ELFIO
+			sym_name = elf_sec_name_by_idx(obj, sym->st_shndx);
+#endif
 		else
 			sym_name = elf_sym_str(obj, sym->st_name);
 		sym_name = sym_name ?: "<?";
@@ -5611,7 +5958,9 @@ bpf_object__relocate_core(struct bpf_object *obj, const char *targ_btf_path)
 		return 0;
 
 	if (targ_btf_path) {
+#ifdef  HAVE_LIBELF
 		obj->btf_vmlinux_override = btf__parse(targ_btf_path, NULL);
+#endif
 		err = libbpf_get_error(obj->btf_vmlinux_override);
 		if (err) {
 			pr_warn("failed to parse target BTF: %d\n", err);
@@ -6478,11 +6827,16 @@ static int bpf_object__collect_relos(struct bpf_object *obj)
 		Elf64_Shdr *shdr;
 		Elf_Data *data;
 		int idx;
+		Elf64_Shdr shdrelf;
 
 		if (sec_desc->sec_type != SEC_RELO)
 			continue;
 
+#if defined HAVE_LIBELF
 		shdr = sec_desc->shdr;
+#elif defined HAVE_ELFIO
+		shdr = elf_sec_hdr_by_idx(obj, i, &shdrelf);
+#endif
 		data = sec_desc->data;
 		idx = shdr->sh_info;
 
@@ -6979,11 +7333,13 @@ static struct bpf_object *bpf_object_open(const char *path, const void *obj_buf,
 	size_t log_size;
 	__u32 log_level;
 
+#ifdef HAVE_LIBELF
 	if (elf_version(EV_CURRENT) == EV_NONE) {
 		pr_warn("failed to init libelf for %s\n",
 			path ? : "(mem buf)");
 		return ERR_PTR(-LIBBPF_ERRNO__LIBELF);
 	}
+#endif
 
 	if (!OPTS_VALID(opts, bpf_object_open_opts))
 		return ERR_PTR(-EINVAL);

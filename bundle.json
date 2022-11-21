@@ -1,0 +1,31 @@
+{
+    "name": "@ohos/libbpf",
+    "description": "Libbpf is a set of tools for building BPF applications",
+    "version": "Release_0.7.0",
+    "license": "LGPL-2.1 OR BSD-2-Clause License",
+    "publishAs": "code-segment",
+    "segment": {
+        "destPath": "third_party/libbpf"
+    },
+    "dirs": {},
+    "scripts": {},
+    "licensePath": "LICENSE",
+    "component": {
+        "name": "libbpf",
+        "subsystem": "thirdparty",
+        "syscap": [],
+        "features": [],
+        "adapted_system_type": [],
+        "rom": "",
+        "ram": "",
+        "deps": {
+            "components": [],
+            "third_party": []
+        },
+        "build": {
+            "sub_component": [],
+            "inner_kits": [],
+            "test": []
+        }
+    }
+}
