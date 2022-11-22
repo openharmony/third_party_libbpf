@@ -63,16 +63,28 @@
             </filefilter>
             <filefilter name="defaultPolicyFilter" desc="Filters for compatibility，license header policies">
                 <filteritem type="filepath" name="docs/.*" desc="the license header in third party"/>
+                <filteritem type="filepath" name="docs/sphinx/doxygen/Doxyfile" desc="config file, no license header"/>
                 <filteritem type="filepath" name="include/.*" desc="the license header in third party"/>
                 <filteritem type="filepath" name="src/.*" desc="the license header in third party"/>
+                <filteritem type="filepath" name="src/bpf_helper_defs.h" desc="auto-generated file, no license header"/>
                 <filteritem type="filepath" name="travis-ci/.*" desc="No license header"/>
-                <filteritem type="filepath" name="scripts/.*" desc="No license header"/>
+                <filteritem type="filepath" name="scripts/.*" desc="script files, no license header"/>
                 <filteritem type="filename" name="LICENSE" desc="license file"/>
             </filefilter>
             <filefilter name="copyrightPolicyFilter" desc="Filters for copyright header policies">
                 <filteritem type="filepath" name="docs/.*" desc="No copyright header"/>
                 <filteritem type="filepath" name="include/.*" desc="No copyright header"/>
+                <filteritem type="filepath" name="include/uapi/linux/bpf.h" desc="the copyright header in third party"/>
+                <filteritem type="filepath" name="include/uapi/linux/btf.h" desc="the copyright header in third party"/>
+                <filteritem type="filepath" name="include/uapi/linux/if_xdp.h" desc="the copyright header in third party"/>
+                <filteritem type="filepath" name="include/uapi/linux/perf_event.h" desc="the copyright header in third party"/>
                 <filteritem type="filepath" name="src/.*" desc="the copyright header in third party"/>
+                <filteritem type="filepath" name="src/str_error.c" desc="No copyright header"/>
+                <filteritem type="filepath" name="src/str_error.h" desc="No copyright header"/>
+                <filteritem type="filepath" name="src/bpf_endian.h" desc="No copyright header"/>
+                <filteritem type="filepath" name="src/bpf_core_read.h" desc="No copyright header"/>
+                <filteritem type="filepath" name="src/bpf_helper_defs.h" desc="No copyright header"/>
+                <filteritem type="filepath" name="src/bpf_tracing.h" desc="No copyright header"/>
                 <filteritem type="filepath" name="travis-ci/.*" desc="No copyright header"/>
                 <filteritem type="filepath" name="scripts/.*" desc="No copyright header"/>
             </filefilter>
