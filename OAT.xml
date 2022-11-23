@@ -50,51 +50,14 @@
         <licensefile></licensefile>
         <policylist>
             <policy name="projectPolicy" desc="">
-                <policyitem type="license" name="LGPL-2.1 OR BSD-2-Clause" path=".*" desc="Dynamically linked by module hiprofiler"/>
+                <policyitem type="compatibility" name="GPL-2.0 WITH Linux-syscall-note" path="include/uapi/linux/.*" desc="Linux kernel license"/>
+                <policyitem type="compatibility" name="GPL-2.0" path="docs/conf.py" desc="Configuration file, nonparticipation in compilation"/>
+                <policyitem type="compatibility" name="LGPL-2.1" path=".*" desc="Dynamically linked by module hiprofiler"/>
             </policy>
         </policylist>
-
         <filefilterlist>
-            <filefilter name="defaultFilter" desc="Files not to check">
-                <filteritem type="filename" name="LICENSE*" desc="license file"/>
-                <filteritem type="filename" name="BPF-CHECKPOINT-COMMIT" desc="git file"/>
-                <filteritem type="filename" name="CHECKPOINT-COMMIT" desc="git file"/>
-                <filteritem type="filepath" name="fuzz/.*" desc="Test files"/>
-            </filefilter>
-            <filefilter name="defaultPolicyFilter" desc="Filters for compatibility，license header policies">
-                <filteritem type="filepath" name="docs/.*" desc="the license header in third party"/>
-                <filteritem type="filepath" name="docs/sphinx/doxygen/Doxyfile" desc="config file, no license header"/>
-                <filteritem type="filepath" name="include/.*" desc="the license header in third party"/>
-                <filteritem type="filepath" name="src/.*" desc="the license header in third party"/>
-                <filteritem type="filepath" name="src/bpf_helper_defs.h" desc="auto-generated file, no license header"/>
-                <filteritem type="filepath" name="travis-ci/.*" desc="No license header"/>
-                <filteritem type="filepath" name="scripts/.*" desc="script files, no license header"/>
-                <filteritem type="filename" name="LICENSE" desc="license file"/>
-            </filefilter>
-            <filefilter name="copyrightPolicyFilter" desc="Filters for copyright header policies">
-                <filteritem type="filepath" name="docs/.*" desc="No copyright header"/>
-                <filteritem type="filepath" name="include/.*" desc="No copyright header"/>
-                <filteritem type="filepath" name="include/uapi/linux/bpf.h" desc="the copyright header in third party"/>
-                <filteritem type="filepath" name="include/uapi/linux/btf.h" desc="the copyright header in third party"/>
-                <filteritem type="filepath" name="include/uapi/linux/if_xdp.h" desc="the copyright header in third party"/>
-                <filteritem type="filepath" name="include/uapi/linux/perf_event.h" desc="the copyright header in third party"/>
-                <filteritem type="filepath" name="src/.*" desc="the copyright header in third party"/>
-                <filteritem type="filepath" name="src/str_error.c" desc="No copyright header"/>
-                <filteritem type="filepath" name="src/str_error.h" desc="No copyright header"/>
-                <filteritem type="filepath" name="src/bpf_endian.h" desc="No copyright header"/>
-                <filteritem type="filepath" name="src/bpf_core_read.h" desc="No copyright header"/>
-                <filteritem type="filepath" name="src/bpf_helper_defs.h" desc="No copyright header"/>
-                <filteritem type="filepath" name="src/bpf_tracing.h" desc="No copyright header"/>
-                <filteritem type="filepath" name="travis-ci/.*" desc="No copyright header"/>
-                <filteritem type="filepath" name="scripts/.*" desc="No copyright header"/>
-            </filefilter>
-            <filefilter name="licenseFileNamePolicyFilter" desc="Filters for LICENSE file policies">
-            </filefilter>
-            <filefilter name="readmeFileNamePolicyFilter" desc="Filters for README file policies">
-            </filefilter>
-            <filefilter name="readmeOpenSourcefileNamePolicyFilter" desc="Filters for README.OpenSource file policies">
-            </filefilter>
             <filefilter name="binaryFileTypePolicyFilter" desc="Filters for binary file policies">
+                <filteritem type="filepath" name="fuzz/bpf-object-fuzzer_seed_corpus.zip" desc="The binary file in third party"/>
             </filefilter>
         </filefilterlist>
     </oatconfig>
