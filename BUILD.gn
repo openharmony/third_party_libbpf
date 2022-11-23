@@ -96,5 +96,6 @@ ohos_shared_library("libbpf") {
   subsystem_name = "developtools"
   part_name = "profiler"
   install_enable = true
+  license_file = "LICENSE.BSD-2-Clause"
 }
 
