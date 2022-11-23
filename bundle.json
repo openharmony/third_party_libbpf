@@ -2,7 +2,7 @@
     "name": "@ohos/libbpf",
     "description": "Libbpf is a set of tools for building BPF applications",
     "version": "Release_0.7.0",
-    "license": "LGPL-2.1 OR BSD-2-Clause License",
+    "license": "BSD-2-Clause License",
     "publishAs": "code-segment",
     "segment": {
         "destPath": "third_party/libbpf"
