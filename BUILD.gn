@@ -32,9 +32,7 @@ config("libbpf_config") {
     "-Wno-unused-variable",
     "-Wno-uninitialized",
   ]
-  defines = [
-    "HAVE_ELFIO",
-  ]
+  defines = [ "HAVE_ELFIO" ]
 }
 
 config("libbpf_public_config") {
@@ -55,24 +53,24 @@ ohos_shared_library("libbpf") {
   ]
   sources = [
     "./src/bpf.c",
+    "./src/bpf.h",
     "./src/bpf_core_read.h",
     "./src/bpf_endian.h",
     "./src/bpf_gen_internal.h",
-    "./src/bpf.h",
     "./src/bpf_helper_defs.h",
     "./src/bpf_helpers.h",
     "./src/bpf_prog_linfo.c",
     "./src/bpf_tracing.h",
     "./src/btf.c",
-    "./src/btf_dump.c",
     "./src/btf.h",
+    "./src/btf_dump.c",
     "./src/gen_loader.c",
     "./src/hashmap.c",
     "./src/hashmap.h",
     "./src/libbpf.c",
+    "./src/libbpf.h",
     "./src/libbpf_common.h",
     "./src/libbpf_errno.c",
-    "./src/libbpf.h",
     "./src/libbpf_internal.h",
     "./src/libbpf_legacy.h",
     "./src/libbpf_probes.c",
@@ -93,9 +91,9 @@ ohos_shared_library("libbpf") {
   ]
   configs = [ ":libbpf_config" ]
   public_configs = [ ":libbpf_public_config" ]
+  output_extension = "so"
   subsystem_name = "developtools"
   part_name = "profiler"
   install_enable = true
   license_file = "LICENSE.BSD-2-Clause"
 }
-
