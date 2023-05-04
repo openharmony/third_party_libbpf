@@ -163,6 +163,7 @@ struct pt_regs___arm64 {
 #define __PT_PARM3_REG regs[2]
 #define __PT_PARM4_REG regs[3]
 #define __PT_PARM5_REG regs[4]
+#define __PT_PARM6_REG regs[5]
 #define __PT_RET_REG regs[30]
 #define __PT_FP_REG regs[29]	/* Works only with CONFIG_FRAME_POINTER */
 #define __PT_RC_REG regs[0]
@@ -225,6 +226,7 @@ struct pt_regs___arm64 {
 #define __PT_PARM3_REG a2
 #define __PT_PARM4_REG a3
 #define __PT_PARM5_REG a4
+#define __PT_PARM6_REG a5
 #define __PT_RET_REG ra
 #define __PT_FP_REG s0
 #define __PT_RC_REG a5
@@ -249,6 +251,7 @@ struct pt_regs;
 #define PT_REGS_PARM3(x) (__PT_REGS_CAST(x)->__PT_PARM3_REG)
 #define PT_REGS_PARM4(x) (__PT_REGS_CAST(x)->__PT_PARM4_REG)
 #define PT_REGS_PARM5(x) (__PT_REGS_CAST(x)->__PT_PARM5_REG)
+#define PT_REGS_PARM6(x) (__PT_REGS_CAST(x)->__PT_PARM6_REG)
 #define PT_REGS_RET(x) (__PT_REGS_CAST(x)->__PT_RET_REG)
 #define PT_REGS_FP(x) (__PT_REGS_CAST(x)->__PT_FP_REG)
 #define PT_REGS_RC(x) (__PT_REGS_CAST(x)->__PT_RC_REG)
@@ -312,6 +315,7 @@ struct pt_regs;
 #define PT_REGS_PARM3(x) ({ _Pragma(__BPF_TARGET_MISSING); 0l; })
 #define PT_REGS_PARM4(x) ({ _Pragma(__BPF_TARGET_MISSING); 0l; })
 #define PT_REGS_PARM5(x) ({ _Pragma(__BPF_TARGET_MISSING); 0l; })
+#define PT_REGS_PARM6(x) ({ _Pragma(__BPF_TARGET_MISSING); 0l; })
 #define PT_REGS_RET(x) ({ _Pragma(__BPF_TARGET_MISSING); 0l; })
 #define PT_REGS_FP(x) ({ _Pragma(__BPF_TARGET_MISSING); 0l; })
 #define PT_REGS_RC(x) ({ _Pragma(__BPF_TARGET_MISSING); 0l; })
@@ -421,6 +425,7 @@ struct pt_regs;
 #define ___bpf_kprobe_args3(x, args...) ___bpf_kprobe_args2(args), (void *)PT_REGS_PARM3(ctx)
 #define ___bpf_kprobe_args4(x, args...) ___bpf_kprobe_args3(args), (void *)PT_REGS_PARM4(ctx)
 #define ___bpf_kprobe_args5(x, args...) ___bpf_kprobe_args4(args), (void *)PT_REGS_PARM5(ctx)
+#define ___bpf_kprobe_args6(x, args...) ___bpf_kprobe_args5(args), (void *)PT_REGS_PARM6(ctx)
 #define ___bpf_kprobe_args(args...)     ___bpf_apply(___bpf_kprobe_args, ___bpf_narg(args))(args)
 
 /*
