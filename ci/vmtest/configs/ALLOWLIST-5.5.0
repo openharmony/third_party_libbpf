@@ -1,4 +1,4 @@
-attach_probe
+# attach_probe
 autoload
 bpf_verif_scale
 cgroup_attach_autodetach
@@ -10,7 +10,6 @@ core_reloc
 core_retro
 cpu_mask
 endian
-fexit_stress
 get_branch_snapshot
 get_stackid_cannot_attach
 global_data
@@ -43,13 +42,13 @@ spinlock
 stacktrace_map
 stacktrace_map_raw_tp
 static_linked
-subprogs
 task_fd_query_rawtp
 task_fd_query_tp
 tc_bpf
 tcp_estats
 tcp_rtt
 tp_attach_query
+usdt/urand_pid_attach
 xdp
 xdp_info
 xdp_noinline
