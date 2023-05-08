@@ -59,6 +59,10 @@
             <filefilter name="binaryFileTypePolicyFilter" desc="Filters for binary file policies">
                 <filteritem type="filepath" name="fuzz/bpf-object-fuzzer_seed_corpus.zip" desc="The binary file in third party"/>
             </filefilter>
+            <filefilter name="defaultFilter" desc="Files not to check">
+                <filteritem type="filename" name="*.sh|*.png|*.sym|*.bash" desc="desc files"/>
+                <filteritem type="filepath" name="ci/.*" desc="ci files"/>
+            </filefilter>
         </filefilterlist>
     </oatconfig>
 </configuration>
