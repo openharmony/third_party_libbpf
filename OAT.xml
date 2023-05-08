@@ -70,6 +70,9 @@
                 <filteritem type="filepath" name="include/uapi/linux/fcntl.h" desc="The file in third party"/>
                 <filteritem type="filepath" name="LICENSE.BSD-2-Clause" desc="The file in third party"/>
             </filefilter>
+            <filefilter name="defaultPolicyFilter" desc="Filters for compatibility,license header policies">
+                <filteritem type="filepath" name="include/uapi/linux/.*" desc="The file in third party"/>
+            </filefilter>
         </filefilterlist>
     </oatconfig>
 </configuration>
