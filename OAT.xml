@@ -53,7 +53,7 @@
                 <policyitem type="compatibility" name="GPL-2.0 WITH Linux-syscall-note" path="include/uapi/linux/.*" desc="Linux kernel license"/>
                 <policyitem type="compatibility" name="GPL-2.0" path="docs/conf.py" desc="Configuration file, nonparticipation in compilation"/>
                 <policyitem type="compatibility" name="LGPL-2.1" path=".*" desc="Dynamically linked by module hiprofiler"/>
-                <policyitem type="compatibility" name="BSD-2-Clause" path=".*" desc="USDT license"/>
+                <policyitem type="license" name="BSD-2-Clause" path=".*" desc="USDT license"/>
                 <policyitem type="copyright" name="Meta Platforms, Inc. and affiliates." path=".*"  desc=""/>
             </policy>
         </policylist>
