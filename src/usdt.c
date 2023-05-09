@@ -4,32 +4,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#ifdef  HAVE_LIBELF
 #include <libelf.h>
 #include <gelf.h>
-#endif  //HAVE_LIBELF
 #include <unistd.h>
 #include <linux/ptrace.h>
 #include <linux/kernel.h>
-
-#ifdef HAVE_ELFIO
-#include "elfio_c_wrapper.h"
-#include <linux/memfd.h>
-#include <sys/syscall.h>
-#include <limits.h>
-
-typedef struct Elf64_Ehdr Elf64_Ehdr;
-typedef struct Elf64_Shdr Elf64_Shdr;
-typedef struct Elf64_Sym Elf64_Sym;
-typedef struct Elf64_Rel Elf64_Rel;
-typedef struct Elf64_Phdr Elf64_Phdr;
-typedef struct {
-  void *d_buf;
-  size_t d_size;
-} Elf_Data;
-
-#define elf_errmsg(val) "error"
-#endif
 
 /* s8 will be marked as poison while it's a reg of riscv */
 #if defined(__riscv)
@@ -316,11 +295,12 @@ void usdt_manager_free(struct usdt_manager *man)
 	free(man->free_spec_ids);
 	free(man);
 }
-#ifdef  HAVE_LIBELF
+
 static int sanity_check_usdt_elf(Elf *elf, const char *path)
 {
 	GElf_Ehdr ehdr;
 	int endianness;
+
 	if (elf_kind(elf) != ELF_K_ELF) {
 		pr_warn("usdt: unrecognized ELF kind %d for '%s'\n", elf_kind(elf), path);
 		return -EBADF;
@@ -368,53 +348,6 @@ static int sanity_check_usdt_elf(Elf *elf, const char *path)
 	return 0;
 }
 
-#elif HAVE_ELFIO
-static int sanity_check_usdt_elf(pelfio_t pelfio, const char *path)
-{
-	int endianness;
-	switch (elfio_get_class(pelfio)) {
-	case ELFCLASS64:
-		if (sizeof(void *) != 8) {
-			pr_warn("usdt: attaching to 64-bit ELF binary '%s' is not supported\n", path);
-			return -EBADF;
-		}
-		break;
-	case ELFCLASS32:
-		if (sizeof(void *) != 4) {
-			pr_warn("usdt: attaching to 32-bit ELF binary '%s' is not supported\n", path);
-			return -EBADF;
-		}
-		break;
-	default:
-		pr_warn("usdt: unsupported ELF class for '%s'\n", path);
-		return -EBADF;
-	}
-	Elf_Half e_type = elfio_get_type(pelfio);
-	if (e_type != ET_EXEC && e_type != ET_DYN) {
-		pr_warn("usdt: unsupported type of ELF binary '%s' (%d), only ET_EXEC and ET_DYN are supported\n",
-			path, e_type);
-		return -EBADF;
-	}
-
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-	endianness = ELFDATA2LSB;
-#elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-	endianness = ELFDATA2MSB;
-#else
-# error "Unrecognized __BYTE_ORDER__"
-#endif
-	if (endianness != elfio_get_encoding(pelfio)) {
-		pr_warn("usdt: ELF endianness mismatch for '%s'\n", path);
-		return -EBADF;
-	}
-	return 0;
-}
-
-#endif  //
-
-
-
-#ifdef  HAVE_LIBELF
 static int find_elf_sec_by_name(Elf *elf, const char *sec_name, GElf_Shdr *shdr, Elf_Scn **scn)
 {
 	Elf_Scn *sec = NULL;
@@ -442,19 +375,6 @@ static int find_elf_sec_by_name(Elf *elf, const char *sec_name, GElf_Shdr *shdr,
 
 	return -ENOENT;
 }
-#elif HAVE_ELFIO
-static int find_elf_sec_by_name(pelfio_t pelfio, const char *sec_name, Elf64_Shdr* shdr, psection_t *scn)
-{
-	*scn = elfio_get_section_by_name(pelfio, sec_name);
-	if (*scn == NULL) {
-		return -EINVAL;
-	}
-	shdr->sh_type = elfio_section_get_type(*scn);
-	shdr->sh_addr = elfio_section_get_address(*scn);
-	return 0;
-}
-#endif  //
-
 
 struct elf_seg {
 	long start;
@@ -471,17 +391,9 @@ static int cmp_elf_segs(const void *_a, const void *_b)
 	return a->start < b->start ? -1 : 1;
 }
 
-#ifdef  HAVE_LIBELF
 static int parse_elf_segs(Elf *elf, const char *path, struct elf_seg **segs, size_t *seg_cnt)
-#elif HAVE_ELFIO
-static int parse_elf_segs(pelfio_t elf, const char *path, struct elf_seg **segs, size_t *seg_cnt)
-#endif  //HAVE_LIBELF
 {
-#ifdef  HAVE_LIBELF
 	GElf_Phdr phdr;
-#elif HAVE_ELFIO
-	Elf64_Phdr phdr;
-#endif  //HAVE_LIBELF
 	size_t n;
 	int i, err;
 	struct elf_seg *seg;
@@ -489,34 +401,17 @@ static int parse_elf_segs(pelfio_t elf, const char *path, struct elf_seg **segs,
 
 	*seg_cnt = 0;
 
-#ifdef  HAVE_LIBELF
 	if (elf_getphdrnum(elf, &n)) {
-#elif HAVE_ELFIO
-	n = elfio_get_segments_num(elf);
-	if (n < 0) {
-#endif  //HAVE_LIBELF
 		err = -errno;
 		return err;
 	}
 
 	for (i = 0; i < n; i++) {
-#ifdef  HAVE_LIBELF
-	if (!gelf_getphdr(elf, i, &phdr)) {
-#elif HAVE_ELFIO
-	psegment_t psegment = elfio_get_segment_by_index(elf, i);
-	if (!psegment) {
-#endif 
+		if (!gelf_getphdr(elf, i, &phdr)) {
 			err = -errno;
 			return err;
-	}
+		}
 
-#ifdef  HAVE_ELFIO
-		phdr.p_vaddr = elfio_segment_get_physical_address(psegment);
-		phdr.p_memsz = elfio_segment_get_memory_size(psegment);
-		phdr.p_offset = elfio_segment_get_offset(psegment);
-		phdr.p_type = elfio_segment_get_type(psegment);
-		phdr.p_flags = elfio_segment_get_flags(psegment);
-#endif  //
 		pr_debug("usdt: discovered PHDR #%d in '%s': vaddr 0x%lx memsz 0x%lx offset 0x%lx type 0x%lx flags 0x%lx\n",
 			 i, path, (long)phdr.p_vaddr, (long)phdr.p_memsz, (long)phdr.p_offset,
 			 (long)phdr.p_type, (long)phdr.p_flags);
@@ -668,66 +563,41 @@ static struct elf_seg *find_vma_seg(struct elf_seg *segs, size_t seg_cnt, long o
 	return NULL;
 }
 
-#ifdef  HAVE_LIBELF
 static int parse_usdt_note(Elf *elf, const char *path, GElf_Nhdr *nhdr,
 			   const char *data, size_t name_off, size_t desc_off,
 			   struct usdt_note *usdt_note);
-#elif HAVE_ELFIO
-static int parse_usdt_note(pelfio_t elf, const char *path, 
-			   const char *data,pnote_t pnote, int index,
-			   struct usdt_note *note);
-#endif  //HAVE_LIBELF
-
 
 static int parse_usdt_spec(struct usdt_spec *spec, const struct usdt_note *note, __u64 usdt_cookie);
 
-#ifdef  HAVE_LIBELF
 static int collect_usdt_targets(struct usdt_manager *man, Elf *elf, const char *path, pid_t pid,
 				const char *usdt_provider, const char *usdt_name, __u64 usdt_cookie,
 				struct usdt_target **out_targets, size_t *out_target_cnt)
-#elif HAVE_ELFIO
-static int collect_usdt_targets(struct usdt_manager *man, pelfio_t elf, const char *path, pid_t pid,
-				const char *usdt_provider, const char *usdt_name, __u64 usdt_cookie,
-				struct usdt_target **out_targets, size_t *out_target_cnt)
-#endif  //
 {
 	size_t off, name_off, desc_off, seg_cnt = 0, vma_seg_cnt = 0, target_cnt = 0;
 	struct elf_seg *segs = NULL, *vma_segs = NULL;
 	struct usdt_target *targets = NULL, *target;
 	long base_addr = 0;
-#ifdef  HAVE_LIBELF
 	Elf_Scn *notes_scn, *base_scn;
 	GElf_Shdr base_shdr, notes_shdr;
 	GElf_Ehdr ehdr;
 	GElf_Nhdr nhdr;
 	Elf_Data *data;
-#elif HAVE_ELFIO
-	Elf64_Shdr base_shdr, notes_shdr;
-	psection_t notes_scn, base_scn;
-	Elf_Half elfType;
-	Elf_Data realData;
-	Elf_Data *data;
-#endif  //
 	int err;
+
 	*out_targets = NULL;
 	*out_target_cnt = 0;
 
 	err = find_elf_sec_by_name(elf, USDT_NOTE_SEC, &notes_shdr, &notes_scn);
-
 	if (err) {
 		pr_warn("usdt: no USDT notes section (%s) found in '%s'\n", USDT_NOTE_SEC, path);
 		return err;
 	}
-#ifdef  HAVE_LIBELF
+
 	if (notes_shdr.sh_type != SHT_NOTE || !gelf_getehdr(elf, &ehdr)) {
-#elif HAVE_ELFIO
-	elfType = elfio_get_type(elf);
-	if (notes_shdr.sh_type != SHT_NOTE) {
-#endif  //
 		pr_warn("usdt: invalid USDT notes section (%s) in '%s'\n", USDT_NOTE_SEC, path);
 		return -EINVAL;
 	}
-	
+
 	err = parse_elf_segs(elf, path, &segs, &seg_cnt);
 	if (err) {
 		pr_warn("usdt: failed to process ELF program segments for '%s': %d\n", path, err);
@@ -739,32 +609,16 @@ static int collect_usdt_targets(struct usdt_manager *man, pelfio_t elf, const ch
 	 */
 	if (find_elf_sec_by_name(elf, USDT_BASE_SEC, &base_shdr, &base_scn) == 0)
 		base_addr = base_shdr.sh_addr;
-#ifdef  HAVE_LIBELF
-	data = elf_getdata(notes_scn, 0);
-#elif HAVE_ELFIO
-	realData.d_buf = (void*)elfio_section_get_data(notes_scn);
-	realData.d_size = elfio_section_get_size(notes_scn);
-	data = &realData;
-#endif  //HAVE_LIBELF
 
-#ifdef  HAVE_LIBELF
+	data = elf_getdata(notes_scn, 0);
 	off = 0;
 	while ((off = gelf_getnote(data, off, &nhdr, &name_off, &desc_off)) > 0) {
-#elif HAVE_ELFIO
-	pnote_t pnote  = elfio_note_section_accessor_new(elf, notes_scn);
-    int     noteno = elfio_note_get_notes_num(pnote);
-    for ( int i = 0; i < noteno; i++ ) {
-#endif  //
 		long usdt_abs_ip, usdt_rel_ip, usdt_sema_off = 0;
 		struct usdt_note note;
 		struct elf_seg *seg = NULL;
 		void *tmp;
-#ifdef  HAVE_LIBELF
-	err = parse_usdt_note(elf, path, &nhdr, data->d_buf, name_off, desc_off, &note);
-#elif HAVE_ELFIO
-	err = parse_usdt_note(elf, path, data->d_buf, pnote, i, &note);
-#endif  //
-		
+
+		err = parse_usdt_note(elf, path, &nhdr, data->d_buf, name_off, desc_off, &note);
 		if (err)
 			goto err_out;
 
@@ -823,12 +677,8 @@ static int collect_usdt_targets(struct usdt_manager *man, pelfio_t elf, const ch
 		}
 		/* translate from virtual address to file offset */
 		usdt_rel_ip = usdt_abs_ip - seg->start + seg->offset;
-#ifdef  HAVE_LIBELF
-	if (ehdr.e_type == ET_DYN && !man->has_bpf_cookie) {
-#elif HAVE_ELFIO
-	if (elfType == ET_DYN && !man->has_bpf_cookie) {
-#endif  //HAVE_LIBELF
-		
+
+		if (ehdr.e_type == ET_DYN && !man->has_bpf_cookie) {
 			/* If we don't have BPF cookie support but need to
 			 * attach to a shared library, we'll need to know and
 			 * record absolute addresses of attach points due to
@@ -869,19 +719,10 @@ static int collect_usdt_targets(struct usdt_manager *man, pelfio_t elf, const ch
 			usdt_abs_ip = seg->start - seg->offset + usdt_rel_ip;
 		}
 
-#ifdef  HAVE_LIBELF
 		pr_debug("usdt: probe for '%s:%s' in %s '%s': addr 0x%lx base 0x%lx (resolved abs_ip 0x%lx rel_ip 0x%lx) args '%s' in segment [0x%lx, 0x%lx) at offset 0x%lx\n",
 			 usdt_provider, usdt_name, ehdr.e_type == ET_EXEC ? "exec" : "lib ", path,
 			 note.loc_addr, note.base_addr, usdt_abs_ip, usdt_rel_ip, note.args,
 			 seg ? seg->start : 0, seg ? seg->end : 0, seg ? seg->offset : 0);
-#elif HAVE_ELFIO
-		pr_debug("usdt: probe for '%s:%s' in %s '%s': addr 0x%lx base 0x%lx (resolved abs_ip 0x%lx rel_ip 0x%lx) args '%s' in segment [0x%lx, 0x%lx) at offset 0x%lx\n",
-			 usdt_provider, usdt_name, elfType == ET_EXEC ? "exec" : "lib ", path,
-			 note.loc_addr, note.base_addr, usdt_abs_ip, usdt_rel_ip, note.args,
-			 seg ? seg->start : 0, seg ? seg->end : 0, seg ? seg->offset : 0);
-
-#endif  //HAVE_LIBELF
-
 
 		/* Adjust semaphore address to be a file offset */
 		if (note.sema_addr) {
@@ -909,19 +750,10 @@ static int collect_usdt_targets(struct usdt_manager *man, pelfio_t elf, const ch
 
 			usdt_sema_off = note.sema_addr - seg->start + seg->offset;
 
-#ifdef  HAVA_LIBELF
 			pr_debug("usdt: sema  for '%s:%s' in %s '%s': addr 0x%lx base 0x%lx (resolved 0x%lx) in segment [0x%lx, 0x%lx] at offset 0x%lx\n",
 				 usdt_provider, usdt_name, ehdr.e_type == ET_EXEC ? "exec" : "lib ",
 				 path, note.sema_addr, note.base_addr, usdt_sema_off,
 				 seg->start, seg->end, seg->offset);
-#elif HAVE_ELFIO
-			pr_debug("usdt: sema  for '%s:%s' in %s '%s': addr 0x%lx base 0x%lx (resolved 0x%lx) in segment [0x%lx, 0x%lx] at offset 0x%lx\n",
-				 usdt_provider, usdt_name, elfType == ET_EXEC ? "exec" : "lib ",
-				 path, note.sema_addr, note.base_addr, usdt_sema_off,
-				 seg->start, seg->end, seg->offset);
-
-#endif  //HAVA_LIBELF
-
 		}
 
 		/* Record adjusted addresses and offsets and parse USDT spec */
@@ -950,9 +782,6 @@ static int collect_usdt_targets(struct usdt_manager *man, pelfio_t elf, const ch
 
 		target_cnt++;
 	}
-#ifdef  HAVE_ELFIO
-	elfio_note_section_accessor_delete(pnote);
-#endif  //
 
 	*out_targets = targets;
 	*out_target_cnt = target_cnt;
@@ -1120,17 +949,12 @@ struct bpf_link *usdt_manager_attach_usdt(struct usdt_manager *man, const struct
 	struct bpf_link_usdt *link = NULL;
 	struct usdt_target *targets = NULL;
 	size_t target_cnt;
-#ifdef  HAVE_LIBELF
 	Elf *elf;
-#elif HAVE_ELFIO
-	pelfio_t elf = elfio_new();
-#endif  //
 
 	spec_map_fd = bpf_map__fd(man->specs_map);
 	ip_map_fd = bpf_map__fd(man->ip_to_spec_id_map);
 
 	/* TODO: perform path resolution similar to uprobe's */
-#ifdef  HAVE_LIBELF
 	fd = open(path, O_RDONLY);
 	if (fd < 0) {
 		err = -errno;
@@ -1140,10 +964,6 @@ struct bpf_link *usdt_manager_attach_usdt(struct usdt_manager *man, const struct
 
 	elf = elf_begin(fd, ELF_C_READ_MMAP, NULL);
 	if (!elf) {
-#elif HAVE_ELFIO
-	bool ret = elfio_load(elf, path);
-	if (!ret) {
-#endif  //
 		err = -EBADF;
 		pr_warn("usdt: failed to parse ELF binary '%s': %s\n", path, elf_errmsg(-1));
 		goto err_out;
@@ -1247,12 +1067,8 @@ struct bpf_link *usdt_manager_attach_usdt(struct usdt_manager *man, const struct
 
 	free(targets);
 	hashmap__free(specs_hash);
-#ifdef  HAVE_LIBELF
-	elf_end(elf);  
+	elf_end(elf);
 	close(fd);
-#elif  HAVE_ELFIO
-	elfio_delete(elf);
-#endif  //HAVE_LIBELF
 
 	return &link->link;
 
@@ -1261,54 +1077,30 @@ err_out:
 		bpf_link__destroy(&link->link);
 	free(targets);
 	hashmap__free(specs_hash);
-#ifdef  HAVE_LIBELF
-   if (elf)
-		elf_end(elf);  
+	if (elf)
+		elf_end(elf);
 	close(fd);
-#elif  HAVE_ELFIO
-	elfio_delete(elf);
-#endif  //HAVE_LIBELF
 	return libbpf_err_ptr(err);
 }
 
 /* Parse out USDT ELF note from '.note.stapsdt' section.
  * Logic inspired by perf's code.
  */
-#ifdef  HAVE_LIBELF
 static int parse_usdt_note(Elf *elf, const char *path, GElf_Nhdr *nhdr,
 			   const char *data, size_t name_off, size_t desc_off,
 			   struct usdt_note *note)
-#elif HAVE_ELFIO
-static int parse_usdt_note(pelfio_t elf, const char *path, 
-			   const char *data,pnote_t pnote, int index,
-			   struct usdt_note *note)
-#endif  //
-
 {
 	const char *provider, *name, *args;
 	long addrs[3];
 	size_t len;
 
 	/* sanity check USDT note name and type first */
-#ifdef  HAVE_LIBELF
 	if (strncmp(data + name_off, USDT_NOTE_NAME, nhdr->n_namesz) != 0)
 		return -EINVAL;
 	if (nhdr->n_type != USDT_NOTE_TYPE)
 		return -EINVAL;
-#elif HAVE_ELFIO
-	Elf_Word type;
-    char     noteName[256];
-    char*    desc;
-    Elf_Word descSize = 0;
-    elfio_note_get_note(pnote, index, &type, noteName, sizeof(noteName), (void**)&desc,&descSize);
-	if (strncmp(noteName, USDT_NOTE_NAME, strlen(noteName)) != 0)
-		return -EINVAL;
-	if (type != USDT_NOTE_TYPE)
-		return -EINVAL;
-#endif  //
 
 	/* sanity check USDT note contents ("description" in ELF terminology) */
-#ifdef  HAVE_LIBELF
 	len = nhdr->n_descsz;
 	data = data + desc_off;
 
@@ -1318,13 +1110,6 @@ static int parse_usdt_note(pelfio_t elf, const char *path,
 
 	/* get location, base, and semaphore addrs */
 	memcpy(&addrs, data, sizeof(addrs));
-#elif HAVE_ELFIO
-	len = descSize;
-	if (len < sizeof(addrs) + 3)
-		return -EINVAL;
-	data = desc;
-	memcpy(&addrs, data, sizeof(addrs));
-#endif  //
 
 	/* parse string fields: provider, name, args */
 	provider = data + sizeof(addrs);
