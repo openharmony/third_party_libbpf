@@ -86,8 +86,6 @@ ohos_shared_library("libbpf") {
     "./src/str_error.h",
     "./src/strset.c",
     "./src/strset.h",
-    "./src/xsk.c",
-    "./src/xsk.h",
   ]
   configs = [ ":libbpf_config" ]
   public_configs = [ ":libbpf_public_config" ]
