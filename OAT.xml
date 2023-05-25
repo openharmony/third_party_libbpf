@@ -55,6 +55,7 @@
                 <policyitem type="compatibility" name="LGPL-2.1" path=".*" desc="Dynamically linked by module hiprofiler"/>
                 <policyitem type="license" name="BSD-2-Clause" path=".*" desc="USDT license"/>
                 <policyitem type="copyright" name="Meta Platforms, Inc. and affiliates." path=".*"  desc=""/>
+                <policyitem type="compatibility"  path="BUILD.gn" desc="They are used in dynamic link mode."/>
             </policy>
         </policylist>
         <filefilterlist>
@@ -62,13 +63,51 @@
                 <filteritem type="filepath" name="fuzz/bpf-object-fuzzer_seed_corpus.zip" desc="The binary file in third party"/>
             </filefilter>
             <filefilter name="defaultFilter" desc="Files not to check">
-                <filteritem type="filename" name="*.sh|*.png|*.sym|*.bash" desc="desc files"/>
+                <filteritem type="filename" name="*.sh|*.png|*.sym|*.bash|*.yaml|*.yml" desc="desc files"/>
                 <filteritem type="filepath" name="ci/.*" desc="ci files"/>
                 <filteritem type="filepath" name="docs/.*" desc="docs files"/>
+                <filteritem type="filepath" name="fuzz/.*" desc="fuzz files"/>
+                <filteritem type="filename" name="BPF-CHECKPOINT-COMMIT" desc="bpf checkpoint"/>
+                <filteritem type="filename" name="CHECKPOINT-COMMIT" desc="checkpoint commit"/>
+                <filteritem type="filename" name="src/bpf.c" desc="The source file in third party" />
+                <filteritem type="filename" name="src/libbpf.h" desc="The source file in third party" />
+                <filteritem type="filename" name="src/str_error.h" desc="The source file in third party" />
+                <filteritem type="filename" name="src/bpf.h" desc="The source file in third party" />
+                <filteritem type="filename" name="src/libbpf_common.h" desc="The source file in third party" />
+                <filteritem type="filename" name="src/strset.c" desc="The source file in third party" />
+                <filteritem type="filename" name="src/bpf_core_read.h" desc="The source file in third party" />
+                <filteritem type="filename" name="src/libbpf_errno.c" desc="The source file in third party" />
+                <filteritem type="filename" name="src/strset.h" desc="The source file in third party" />
+                <filteritem type="filename" name="src/bpf_endian.h" desc="The source file in third party" />
+                <filteritem type="filename" name="src/libbpf_internal.h" desc="The source file in third party" />
+                <filteritem type="filename" name="src/bpf_gen_internal.h" desc="The source file in third party" />
+                <filteritem type="filename" name="src/libbpf_legacy.h" desc="The source file in third party" />
+                <filteritem type="filename" name="src/bpf_helper_defs.h" desc="The source file in third party" />
+                <filteritem type="filename" name="src/libbpf_probes.c" desc="The source file in third party" />
+                <filteritem type="filename" name="src/libbpf_version.h" desc="The source file in third party" />
+                <filteritem type="filename" name="src/bpf_prog_linfo.c" desc="The source file in third party" />
+                <filteritem type="filename" name="src/linker.c" desc="The source file in third party" />
+                <filteritem type="filename" name="src/bpf_tracing.h9" desc="The source file in third party" />
+                <filteritem type="filename" name="src/netlink.c" desc="The source file in third party" />
+                <filteritem type="filename" name="src/btf.c" desc="The source file in third party" />
+                <filteritem type="filename" name="src/nlattr.c" desc="The source file in third party" />
+                <filteritem type="filename" name="src/btf.h" desc="The source file in third party" />
+                <filteritem type="filename" name="src/nlattr.h" desc="The source file in third party" />
+                <filteritem type="filename" name="src/btf_dump.c" desc="The source file in third party" />
+                <filteritem type="filename" name="src/relo_core.c" desc="The source file in third party" />
+                <filteritem type="filename" name="src/gen_loader.c" desc="The source file in third party" />
+                <filteritem type="filename" name="src/relo_core.h" desc="The source file in third party" />
+                <filteritem type="filename" name="src/hashmap.c" desc="The source file in third party" />
+                <filteritem type="filename" name="src/ringbuf.c" desc="The source file in third party" />
+                <filteritem type="filename" name="src/hashmap.h" desc="The source file in third party" />
+                <filteritem type="filename" name="src/skel_internal.h" desc="The source file in third party" />
+                <filteritem type="filename" name="src/libbpf.c" desc="The source file in third party" />
+                <filteritem type="filename" name="src/str_error.c" desc="The source file in third party" />
             </filefilter>
             <filefilter name="copyrightPolicyFilter" desc="">
-                <filteritem type="filepath" name="include/uapi/linux/fcntl.h" desc="The file in third party"/>
-                <filteritem type="filepath" name="LICENSE.BSD-2-Clause" desc="The file in third party"/>
+                <filteritem type="filename" name="include/uapi/linux/*.h" desc="The file in third party"/>
+                <filteritem type="filename" name="include/linux/*.h" desc="The file in third party"/>
+                <filteritem type="filename" name="LICENSE.BSD-2-Clause" desc="The file in third party"/>
             </filefilter>
             <filefilter name="defaultPolicyFilter" desc="Filters for compatibility,license header policies">
                 <filteritem type="filepath" name="include/uapi/linux/.*" desc="The file in third party"/>
