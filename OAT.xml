@@ -56,15 +56,8 @@
                 <policyitem type="license" name="BSD-2-Clause" path=".*" desc="USDT license"/>
                 <policyitem type="copyright" name="Meta Platforms, Inc. and affiliates." path=".*"  desc=""/>
                 <policyitem type="compatibility"  path="BUILD.gn" desc="They are used in dynamic link mode."/>
-                <policyitem type="copyright" name="PLUMgrid, http://plumgrid.com" path=".*" rule="may" group="defaultGroup" filefilter="copyrightPolicyFilter" desc="thrid party"/>
-                <policyitem type="copyright" name="Alexei Starovoitov <ast@kernel.org>" path=".*" rule="may" group="defaultGroup" filefilter="copyrightPolicyFilter" desc="thrid party"/>
-                <policyitem type="copyright" name="Wang Nan <wangnan0@huawei.com>" path=".*" rule="may" group="defaultGroup" filefilter="copyrightPolicyFilter" desc="thrid party"/>
-                <policyitem type="copyright" name="Huawei Inc." path=".*" rule="may" group="defaultGroup" filefilter="copyrightPolicyFilter" desc="thrid party"/>
-                <policyitem type="copyright" name="Facebook" path=".*" rule="may" group="defaultGroup" filefilter="copyrightPolicyFilter" desc="thrid party"/>
-                <policyitem type="copyright" name="Netronome Systems, Inc." path=".*" rule="may" group="defaultGroup" filefilter="copyrightPolicyFilter" desc="thrid party"/>
-                <policyitem type="copyright" name="Free Software Foundation, Inc." path=".*" rule="may" group="defaultGroup" filefilter="copyrightPolicyFilter" desc="thrid party"/>
-                <policyitem type="copyright" name="Thomas Graf <tgraf@suug.ch>" path=".*" rule="may" group="defaultGroup" filefilter="copyrightPolicyFilter" desc="thrid party"/>
-                <policyitem type="copyright" name="Facebook, Inc." path=".*" rule="may" group="defaultGroup" filefilter="copyrightPolicyFilter" desc="thrid party"/>
+                <policyitem type="copyright" name="*" path=".*" rule="may" group="defaultGroup" filefilter="copyrightPolicyFilter" desc=""/>
+                <policyitem type="license" name="*" path=".*" rule="may" group="defaultGroup" filefilter="defaultPolicyFilter" desc=""/>
             </policy>
         </policylist>
         <filefilterlist>
@@ -83,17 +76,25 @@
                 <filteritem type="filepath" name="fuzz/.*" desc="fuzz files"/>
                 <filteritem type="filename" name="BPF-CHECKPOINT-COMMIT" desc="bpf checkpoint"/>
                 <filteritem type="filename" name="CHECKPOINT-COMMIT" desc="checkpoint commit"/>
+                <filteritem type="filepath" name="include/linux/.*" desc=""/>
+                <filteritem type="filepath" name="include/uapi/linux/.*" desc=""/>
+                <filteritem type="filepath" name="include/asm/.*" desc=""/>
             </filefilter>
             <filefilter name="copyrightPolicyFilter" desc="">
                 <filteritem type="filepath" name="include/uapi/linux/*.h" desc="The file in third party"/>
                 <filteritem type="filepath" name="include/linux/*.h" desc="The file in third party"/>
                 <filteritem type="filename" name="LICENSE.BSD-2-Clause" desc="The file in third party"/>
-                <filteritem type="filepath" name="src/*.c" desc="The file in third party"/>
-                <filteritem type="filepath" name="src/*.h" desc="The file in third party"/>
+                <filteritem type="filename" name="src/bpf_helpers.h" desc="The file in third party"/>
             </filefilter>
             <filefilter name="defaultPolicyFilter" desc="Filters for compatibility,license header policies">
                 <filteritem type="filepath" name="include/uapi/linux/.*" desc="The file in third party"/>
                 <filteritem type="filename" name="LICENSE.BSD-2-Clause" desc="license bsd-2"/>
+                <filteritem type="filename" name="BUILD.gn" desc=""/>
+                <filteritem type="filename" name="LICENSE" desc="license bsd-2"/>
+                <filteritem type="filename" name="src/libbpf.map" desc=""/>
+                <filteritem type="filename" name="LICENSE.LGPL-2.1" desc=""/>
+                <filteritem type="filename" name="NOTICE" desc=""/>
+                <filteritem type="filename" name="src/bpf_helper_defs.h" desc=""/> 
             </filefilter>
         </filefilterlist>
     </oatconfig>
