@@ -13,6 +13,10 @@
 
 import("//build/ohos.gni")
 import("//build/ohos/ndk/ndk.gni")
+
+THIRDPARTY_LIBBPF_SUBSYS_NAME = "thirdparty"
+THIRDPARTY_LIBBPF_PART_NAME = "libbpf"
+
 config("libbpf_config") {
   cflags = [
     "-Wno-incompatible-pointer-types",
@@ -90,8 +94,8 @@ ohos_shared_library("libbpf") {
   configs = [ ":libbpf_config" ]
   public_configs = [ ":libbpf_public_config" ]
   output_extension = "so"
-  subsystem_name = "developtools"
-  part_name = "profiler"
+  subsystem_name = "${THIRDPARTY_LIBBPF_SUBSYS_NAME}"
+  part_name = "${THIRDPARTY_LIBBPF_PART_NAME}"
   install_enable = true
   license_file = "LICENSE.BSD-2-Clause"
 }
