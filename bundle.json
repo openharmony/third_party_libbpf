@@ -20,7 +20,10 @@
         "ram": "",
         "deps": {
             "components": [],
-            "third_party": []
+            "third_party": [
+              "elfio",
+              "zlib"    
+            ]
         },
         "build": {
             "sub_component": [],
