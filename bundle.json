@@ -29,7 +29,15 @@
         },
         "build": {
             "sub_component": [],
-            "inner_kits": [],
+            "inner_kits": [
+                {
+                    "name":"//third_party/libbpf:libbpf",
+                    "header":{
+                        "header_files":[ "libbpf.h" ],
+                        "header_base":"//third_party/libbpf/src"
+                    }
+                }
+            ],
             "test": []
         }
     }
