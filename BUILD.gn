@@ -68,6 +68,7 @@ ohos_shared_library("libbpf") {
     "./src/btf.c",
     "./src/btf.h",
     "./src/btf_dump.c",
+    "./src/elf.c",
     "./src/gen_loader.c",
     "./src/hashmap.c",
     "./src/hashmap.h",
@@ -90,6 +91,7 @@ ohos_shared_library("libbpf") {
     "./src/str_error.h",
     "./src/strset.c",
     "./src/strset.h",
+    "./src/zip.c",
   ]
   configs = [ ":libbpf_config" ]
   public_configs = [ ":libbpf_public_config" ]
