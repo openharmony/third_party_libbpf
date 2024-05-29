@@ -15,6 +15,52 @@
 #include <linux/err.h>
 #include <fcntl.h>
 #include <unistd.h>
+
+#if defined HAVE_LIBELF
+#include <libelf.h>
+#include <gelf.h>
+#endif  //
+
+#ifdef HAVE_ELFIO
+#include "elfio_c_wrapper.h"
+#include <linux/memfd.h>
+#include <sys/syscall.h>
+#include <limits.h>
+typedef struct Elf64_Ehdr Elf64_Ehdr;
+typedef struct Elf64_Shdr Elf64_Shdr;
+typedef struct Elf64_Sym Elf64_Sym;
+typedef Elf64_Sym GElf_Sym;
+typedef struct Elf64_Shdr GElf_Shdr;
+typedef struct Elf64_Rel Elf64_Rel;
+typedef Elf64_Half GElf_Versym ;
+typedef struct {
+  void *d_buf;
+  size_t d_size;
+} Elf_Data;
+
+typedef struct {
+  Elf64_Word	vda_name;		/* Version or dependency names */
+  Elf64_Word	vda_next;		/* Offset in bytes to next verdaux entry */
+} GElf_Verdaux;
+
+typedef struct {
+  Elf64_Half	vd_version;		/* Version revision */
+  Elf64_Half	vd_flags;		/* Version information */
+  Elf64_Half	vd_ndx;			/* Version Index */
+  Elf64_Half	vd_cnt;			/* Number of associated aux entries */
+  Elf64_Word	vd_hash;		/* Version name hash value */
+  Elf64_Word	vd_aux;			/* Offset in bytes to verdaux array */
+  Elf64_Word	vd_next;		/* Offset in bytes to next verdef entry */
+} GElf_Verdef;
+
+#define ELF64_ST_TYPE(val) ELF_ST_TYPE (val)
+#define ELF64_ST_BIND(val) ELF_ST_BIND (val)
+#define GELF_ST_BIND(val) ELF64_ST_BIND (val)
+#define elf_errmsg(val) "error"
+#define SHT_GNU_versym	  0x6fffffff
+#define SHT_GNU_verdef	  0x6ffffffd
+#endif
+
 #include "relo_core.h"
 
 /* make sure libbpf doesn't use kernel-only integer typedefs */
@@ -354,6 +400,8 @@ enum kern_feature_id {
 	FEAT_BTF_ENUM64,
 	/* Kernel uses syscall wrapper (CONFIG_ARCH_HAS_SYSCALL_WRAPPER) */
 	FEAT_SYSCALL_WRAPPER,
+	/* BPF multi-uprobe link support */
+	FEAT_UPROBE_MULTI_LINK,
 	__FEAT_CNT,
 };
 
@@ -469,6 +517,33 @@ struct bpf_line_info_min {
 	__u32	line_col;
 };
 
+struct elf_sym {
+	const char *name;
+	GElf_Sym sym;
+	GElf_Shdr sh;
+	int ver;
+	bool hidden;
+};
+
+struct elf_sym_iter {
+#ifdef  HAVE_LIBELF
+	Elf *elf;
+#elif HAVE_ELFIO
+	pelfio_t elf;
+	psection_t symsSec;
+#endif
+	Elf_Data *syms;
+	Elf_Data *versyms;
+	Elf_Data *verdefs;
+	size_t nr_syms;
+	size_t strtabidx;
+	size_t verdef_strtabidx;
+	size_t next_sym_idx;
+	struct elf_sym sym;
+	int st_type;
+};
+
+
 
 typedef int (*type_id_visit_fn)(__u32 *type_id, void *ctx);
 typedef int (*str_off_visit_fn)(__u32 *str_off, void *ctx);
@@ -543,6 +618,7 @@ static inline int ensure_good_fd(int fd)
 		fd = fcntl(fd, F_DUPFD_CLOEXEC, 3);
 		saved_errno = errno;
 		close(old_fd);
+		errno = saved_errno;
 		if (fd < 0) {
 			pr_warn("failed to dup FD %d to FD > 2: %d\n", old_fd, -saved_errno);
 			errno = saved_errno;
@@ -575,5 +651,31 @@ static inline bool is_pow_of_2(size_t x)
 
 #define PROG_LOAD_ATTEMPTS 5
 int sys_bpf_prog_load(union bpf_attr *attr, unsigned int size, int attempts);
+
+bool glob_match(const char *str, const char *pat);
+
+#ifdef  HAVE_LIBELF
+long elf_find_func_offset(Elf *elf, const char *binary_path, const char *name);
+#elif HAVE_ELFIO
+long elf_find_func_offset(pelfio_t elf, const char *binary_path, const char *name);
+#endif
+long elf_find_func_offset_from_file(const char *binary_path, const char *name);
+
+struct elf_fd {
+#ifdef HAVE_LIBELF
+	Elf *elf;
+#elif HAVE_ELFIO
+	pelfio_t elf;
+#endif
+	int fd;
+};
+
+int elf_open(const char *binary_path, struct elf_fd *elf_fd);
+void elf_close(struct elf_fd *elf_fd);
+
+int elf_resolve_syms_offsets(const char *binary_path, int cnt,
+			     const char **syms, unsigned long **poffsets);
+int elf_resolve_pattern_offsets(const char *binary_path, const char *pattern,
+				 unsigned long **poffsets, size_t *pcnt);
 
 #endif /* __LIBBPF_LIBBPF_INTERNAL_H */
