@@ -44,7 +44,6 @@ config("libbpf_public_config") {
     "./src",
     "./include",
     "./include/uapi",
-    "//third_party/zlib",
     "//third_party/elfio/c_wrapper",
     "//third_party/elfio/elfio",
   ]
@@ -52,10 +51,8 @@ config("libbpf_public_config") {
 
 ohos_shared_library("libbpf") {
   branch_protector_ret = "pac_ret"
-  deps = [
-    "//third_party/elfio:elfio",
-    "//third_party/zlib:libz",
-  ]
+  deps = [ "//third_party/elfio:elfio" ]
+  external_deps = [ "zlib:libz" ]
   sources = [
     "./src/bpf.c",
     "./src/bpf.h",
