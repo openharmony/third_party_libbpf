@@ -21,11 +21,8 @@
         "rom": "",
         "ram": "",
         "deps": {
-            "components": [],
-            "third_party": [
-              "elfio",
-              "zlib"    
-            ]
+            "components": [ "zlib" ],
+            "third_party": [ "elfio" ]
         },
         "build": {
             "sub_component": [],
