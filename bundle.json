@@ -1,7 +1,7 @@
 {
     "name": "@ohos/libbpf",
     "description": "Libbpf is a set of tools for building BPF applications",
-    "version": "Release_0.7.0",
+    "version": "0.7.0",
     "license": "BSD-2-Clause",
     "publishAs": "code-segment",
     "segment": {
