@@ -517,33 +517,6 @@ struct bpf_line_info_min {
 	__u32	line_col;
 };
 
-struct elf_sym {
-	const char *name;
-	GElf_Sym sym;
-	GElf_Shdr sh;
-	int ver;
-	bool hidden;
-};
-
-struct elf_sym_iter {
-#ifdef  HAVE_LIBELF
-	Elf *elf;
-#elif HAVE_ELFIO
-	pelfio_t elf;
-	psection_t symsSec;
-#endif
-	Elf_Data *syms;
-	Elf_Data *versyms;
-	Elf_Data *verdefs;
-	size_t nr_syms;
-	size_t strtabidx;
-	size_t verdef_strtabidx;
-	size_t next_sym_idx;
-	struct elf_sym sym;
-	int st_type;
-};
-
-
 
 typedef int (*type_id_visit_fn)(__u32 *type_id, void *ctx);
 typedef int (*str_off_visit_fn)(__u32 *str_off, void *ctx);

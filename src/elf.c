@@ -126,6 +126,92 @@ static psection_t elf_find_next_scn_by_type(pelfio_t pelfio, int sh_type, psecti
 }
 #endif 
 
+struct elf_sym {
+	const char *name;
+	GElf_Sym sym;
+	GElf_Shdr sh;
+	int ver;
+	bool hidden;
+};
+
+struct elf_sym_iter {
+#ifdef  HAVE_LIBELF
+	Elf *elf;
+#elif HAVE_ELFIO
+	pelfio_t elf;
+	psection_t symsSec;
+#endif
+	Elf_Data *syms;
+	Elf_Data *versyms;
+	Elf_Data *verdefs;
+	size_t nr_syms;
+	size_t strtabidx;
+	size_t verdef_strtabidx;
+	size_t next_sym_idx;
+	struct elf_sym sym;
+	int st_type;
+};
+
+#ifdef  HAVE_LIBELF
+static int elf_sym_iter_new(struct elf_sym_iter *iter,
+			    Elf *elf, const char *binary_path,
+			    int sh_type, int st_type)
+{
+	Elf_Scn *scn = NULL;
+	GElf_Ehdr ehdr;
+	GElf_Shdr sh;
+
+	memset(iter, 0, sizeof(*iter));
+
+	if (!gelf_getehdr(elf, &ehdr)) {
+		pr_warn("elf: failed to get ehdr from %s: %s\n", binary_path, elf_errmsg(-1));
+		return -EINVAL;
+	}
+
+	scn = elf_find_next_scn_by_type(elf, sh_type, NULL);
+	if (!scn) {
+		pr_debug("elf: failed to find symbol table ELF sections in '%s'\n",
+			 binary_path);
+		return -ENOENT;
+	}
+
+	if (!gelf_getshdr(scn, &sh))
+		return -EINVAL;
+
+	iter->strtabidx = sh.sh_link;
+	iter->syms = elf_getdata(scn, 0);
+	if (!iter->syms) {
+		pr_warn("elf: failed to get symbols for symtab section in '%s': %s\n",
+			binary_path, elf_errmsg(-1));
+		return -EINVAL;
+	}
+	iter->nr_syms = iter->syms->d_size / sh.sh_entsize;
+	iter->elf = elf;
+	iter->st_type = st_type;
+
+	/* Version symbol table is meaningful to dynsym only */
+	if (sh_type != SHT_DYNSYM)
+		return 0;
+
+	scn = elf_find_next_scn_by_type(elf, SHT_GNU_versym, NULL);
+	if (!scn)
+		return 0;
+	iter->versyms = elf_getdata(scn, 0);
+
+	scn = elf_find_next_scn_by_type(elf, SHT_GNU_verdef, NULL);
+	if (!scn)
+		return 0;
+
+	iter->verdefs = elf_getdata(scn, 0);
+	if (!iter->verdefs || !gelf_getshdr(scn, &sh)) {
+		pr_warn("elf: failed to get verdef ELF section in '%s'\n", binary_path);
+		return -EINVAL;
+	}
+	iter->verdef_strtabidx = sh.sh_link;
+
+	return 0;
+}
+#elif HAVE_ELFIO
 static int elf_sym_iter_new(struct elf_sym_iter *iter,pelfio_t elf, const char *binary_path, int sh_type, int st_type)
 {
 	psection_t pSec = NULL;
@@ -165,6 +251,7 @@ static int elf_sym_iter_new(struct elf_sym_iter *iter,pelfio_t elf, const char *
 	iter->verdef_strtabidx = elfio_section_get_link(pSec);
 	return 0;
 }
+#endif
 
 #ifdef  HAVA_ELFIO
 static GElf_Shdr *elf_sec_hdr_by_idx(const pelfio_t elf, size_t idx, GElf_Shdr *sheader)
