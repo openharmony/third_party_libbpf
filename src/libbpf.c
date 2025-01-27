@@ -7220,6 +7220,7 @@ static int bpf_object__collect_relos(struct bpf_object *obj)
 		Elf64_Shdr *shdr;
 		Elf_Data *data;
 		int idx;
+		Elf64_Shdr shdrelf;
 
 		if (sec_desc->sec_type != SEC_RELO)
 			continue;
