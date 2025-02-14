@@ -6200,9 +6200,7 @@ bpf_object__relocate_core(struct bpf_object *obj, const char *targ_btf_path)
 		return 0;
 
 	if (targ_btf_path) {
-#ifdef  HAVE_LIBELF
 		obj->btf_vmlinux_override = btf__parse(targ_btf_path, NULL);
-#endif
 		err = libbpf_get_error(obj->btf_vmlinux_override);
 		if (err) {
 			pr_warn("failed to parse target BTF: %d\n", err);
