@@ -5891,7 +5891,9 @@ union bpf_attr {
 	FN(user_ringbuf_drain, 209, ##ctx)		\
 	FN(cgrp_storage_get, 210, ##ctx)		\
 	FN(cgrp_storage_delete, 211, ##ctx)		\
-	/* */
+	FN(sock_tcp_send_reset, 500, ##ctx)		\
+	FN(bpf_sock_destroy, 501, ##ctx)		\
+	/* customization from 500 */
 
 /* backwards-compatibility macros for users of __BPF_FUNC_MAPPER that don't
  * know or care about integer value that is now passed as second argument
