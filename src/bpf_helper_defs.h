@@ -4763,4 +4763,30 @@ static void *(*bpf_cgrp_storage_get)(void *map, struct cgroup *cgroup, void *val
  */
 static long (*bpf_cgrp_storage_delete)(void *map, struct cgroup *cgroup) = (void *) 211;
 
+/*
+ * bpf_sock_tcp_send_reset
+ * 
+ * 	Redirect if netfirewall intercepts socket TCP interception,
+ *  we need to actively send a reset packet to disconnect the current TCP connection.
+ *
+ * Returns
+ * 	The helper returns Send packet reset success.
+ */
+static int (*bpf_sock_tcp_send_reset)(struct __sk_buff *skb) = (void *) 500;
 
+/*
+ * bpf_sock_destroy
+ *
+ * 	Destroy the given socket with ECONNABORTED error code.
+ *  The function expects a non-NULL pointer to a socket, and invokes the
+ *  protocol specific socket destroy handlers.
+ *
+ *  The helper can only be called from BPF contexts that have acquired the socket
+ *  locks.
+ *
+ * Returns
+ * 	On error, may return EPROTONOSUPPORT, EINVAL.
+ *  EPROTONOSUPPORT if protocol specific destroy handler is not supported.
+ * 	0 otherwise.
+ */
+static int (*bpf_sock_destroy)(struct __sk_buff *skb) = (void *) 501;
