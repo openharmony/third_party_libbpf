@@ -253,7 +253,7 @@ static int elf_sym_iter_new(struct elf_sym_iter *iter,pelfio_t elf, const char *
 }
 #endif
 
-#ifdef  HAVA_ELFIO
+#ifdef  HAVE_ELFIO
 static GElf_Shdr *elf_sec_hdr_by_idx(const pelfio_t elf, size_t idx, GElf_Shdr *sheader)
 {
 	psection_t psection = elfio_get_section_by_index(elf, idx);
@@ -269,7 +269,7 @@ static GElf_Shdr *elf_sec_hdr_by_idx(const pelfio_t elf, size_t idx, GElf_Shdr *
 	sheader->sh_entsize = elfio_section_get_entry_size(psection);
 	return sheader;
 }
-#endif  //HAVA_ELFIO
+#endif  //HAVE_ELFIO
 
 
 static struct elf_sym *elf_sym_iter_next(struct elf_sym_iter *iter)
@@ -277,7 +277,7 @@ static struct elf_sym *elf_sym_iter_next(struct elf_sym_iter *iter)
 	struct elf_sym *ret = &iter->sym;
 	GElf_Sym *sym = &ret->sym;
 	GElf_Versym versym;
-#ifdef  HAVA_LIBELF
+#ifdef  HAVE_LIBELF
 	Elf_Scn *sym_scn;
 #elif HAVE_ELFIO
 	psection_t sym_scn;
@@ -285,7 +285,7 @@ static struct elf_sym *elf_sym_iter_next(struct elf_sym_iter *iter)
 	const char *name = NULL;
 	size_t idx;
 	for (idx = iter->next_sym_idx; idx < iter->nr_syms; idx++) {
-#ifdef  HAVA_LIBELF
+#ifdef  HAVE_LIBELF
 		if (!gelf_getsym(iter->syms, idx, sym))
 			continue;
 		if (GELF_ST_TYPE(sym->st_info) != iter->st_type)
@@ -298,8 +298,8 @@ static struct elf_sym *elf_sym_iter_next(struct elf_sym_iter *iter)
 			continue;
 		if (!gelf_getshdr(sym_scn, &ret->sh))
 			continue;
-#elif HAVA_ELFIO
-		if(memcpy(sym,iter->sysms->d_buf + idx,sizeof(GElf_Sym) == NULL) {
+#elif HAVE_ELFIO
+		if(memcpy(sym,iter->syms->d_buf + idx,sizeof(GElf_Sym)) == NULL) {
 			continue;
 		}
 		if(((sym->st_info) & 0xf) != iter->st_type) {
@@ -307,7 +307,7 @@ static struct elf_sym *elf_sym_iter_next(struct elf_sym_iter *iter)
 		}
 		psection_t psection = elfio_get_section_by_index(iter->elf, iter->strtabidx);
 		if (!psection)
-			return -LIBBPF_ERRNO__FORMAT;
+			return NULL;
 		pstring_t strstring = elfio_string_section_accessor_new(psection);
 		name = elfio_string_get_string(strstring, sym->st_name);
 		if(!name) {
@@ -322,11 +322,13 @@ static struct elf_sym *elf_sym_iter_next(struct elf_sym_iter *iter)
 		ret->ver = 0;
 		ret->hidden = false;
 		if (iter->versyms) {
-#ifdef  HAVA_LIBELF
+#ifdef  HAVE_LIBELF
 	if (!gelf_getversym(iter->versyms, idx, &versym))
 				continue;
-#elif HAVA_ELFIO
-		versym = (GElf_Versym)iter->versysm->d_buf[idx];
+#elif HAVE_ELFIO
+		if (memcpy(&versym, iter->versyms->d_buf + idx, sizeof(GElf_Versym)) == NULL) {
+			continue;
+		}
 #endif
 		ret->ver = versym & VERSYM_VERSION;
 		ret->hidden = versym & VERSYM_HIDDEN;
@@ -452,8 +454,8 @@ long elf_find_func_offset(pelfio_t elf, const char *binary_path, const char *nam
 
 	/* for shared lib case, we do not need to calculate relative offset */
 	is_shared_lib = ehdr.e_type == ET_DYN;
-#elif HAVA_ELFIO
-	is_shared_lib = (ET_DYN == elfio_get_type(pelfio));
+#elif HAVE_ELFIO
+	is_shared_lib = (ET_DYN == elfio_get_type(elf));
 #endif
 	/* Does name specify "@@LIB_VER" or "@LIB_VER" ? */
 	at_symbol = strchr(name, '@');
