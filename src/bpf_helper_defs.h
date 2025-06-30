@@ -4765,7 +4765,7 @@ static long (*bpf_cgrp_storage_delete)(void *map, struct cgroup *cgroup) = (void
 
 /*
  * bpf_sock_tcp_send_reset
- * 
+ *
  * 	Redirect if netfirewall intercepts socket TCP interception,
  *  we need to actively send a reset packet to disconnect the current TCP connection.
  *
