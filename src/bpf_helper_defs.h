@@ -3706,48 +3706,31 @@ static void *(*bpf_this_cpu_ptr)(const void *percpu_ptr) = (void *) 154;
 static long (*bpf_redirect_peer)(__u32 ifindex, __u64 flags) = (void *) 155;
 
 /*
- * bpf_task_storage_get
  *
- * 	Get a bpf_local_storage from the *task*.
- *
- * 	Logically, it could be thought of as getting the value from
- * 	a *map* with *task* as the **key**.  From this
- * 	perspective,  the usage is not much different from
- * 	**bpf_map_lookup_elem**\ (*map*, **&**\ *task*) except this
- * 	helper enforces the key must be a task_struct and the map must also
- * 	be a **BPF_MAP_TYPE_TASK_STORAGE**.
- *
- * 	Underneath, the value is stored locally at *task* instead of
- * 	the *map*.  The *map* is used as the bpf-local-storage
- * 	"type". The bpf-local-storage "type" (i.e. the *map*) is
- * 	searched against all bpf_local_storage residing at *task*.
- *
- * 	An optional *flags* (**BPF_LOCAL_STORAGE_GET_F_CREATE**) can be
- * 	used such that a new bpf_local_storage will be
- * 	created if one does not exist.  *value* can be used
- * 	together with **BPF_LOCAL_STORAGE_GET_F_CREATE** to specify
- * 	the initial value of a bpf_local_storage.  If *value* is
- * 	**NULL**, the new bpf_local_storage will be zero initialized.
+ * 	Redirect If Netfirewall intercepts socket TCP interception,
+ * 	we need to actively send a reset packet to disconnect the current TCP connection.
  *
  * Returns
- * 	A bpf_local_storage pointer is returned on success.
- *
- * 	**NULL** if not found or there was an error in adding
- * 	a new bpf_local_storage.
+ * 	The helper returns Send packet reset sucess.
  */
-static void *(*bpf_task_storage_get)(void *map, struct task_struct *task, void *value, __u64 flags) = (void *) 156;
+static int (*bpf_sock_tcp_send_reset)(struct __sk_buff *skb) = (void *) 156;
 
 /*
- * bpf_task_storage_delete
+ * bpf_sock_destroy
  *
- * 	Delete a bpf_local_storage from a *task*.
+ * 	Destroy the given socket with ECONNABORTED error code.
+ * 	The function expects a non-NULL pointer to a socket, and invokes the
+ * 	protocol specific socket destroy handlers.
+ *
+ * 	The helper can only be called from BPF contexts that have acquired the socket
+ * 	locks.
  *
  * Returns
- * 	0 on success.
- *
- * 	**-ENOENT** if the bpf_local_storage cannot be found.
+ * 	On error, may return EPROTONOSUPPORT, EINVAL.
+ * 	EPROTONOSUPPORT if protocol specific destroy handler is not supported.
+ * 	0 otherwise
  */
-static long (*bpf_task_storage_delete)(void *map, struct task_struct *task) = (void *) 157;
+static int (*bpf_sock_destroy)(struct __sk_buff *skb) = (void *) 157;
 
 /*
  * bpf_get_current_task_btf
@@ -4764,29 +4747,45 @@ static void *(*bpf_cgrp_storage_get)(void *map, struct cgroup *cgroup, void *val
 static long (*bpf_cgrp_storage_delete)(void *map, struct cgroup *cgroup) = (void *) 211;
 
 /*
- * bpf_sock_tcp_send_reset
+ * bpf_task_storage_get
  *
- * 	Redirect if netfirewall intercepts socket TCP interception,
- *  we need to actively send a reset packet to disconnect the current TCP connection.
+ * 	Get a bpf_local_storage from the *task*.
+ *
+ * 	Logically, it could be thought of as getting the value from
+ * 	a *map* with *task* as the **key**.  From this
+ * 	perspective,  the usage is not much different from
+ * 	**bpf_map_lookup_elem**\ (*map*, **&**\ *task*) except this
+ * 	helper enforces the key must be a task_struct and the map must also
+ * 	be a **BPF_MAP_TYPE_TASK_STORAGE**.
+ *
+ * 	Underneath, the value is stored locally at *task* instead of
+ * 	the *map*.  The *map* is used as the bpf-local-storage
+ * 	"type". The bpf-local-storage "type" (i.e. the *map*) is
+ * 	searched against all bpf_local_storage residing at *task*.
+ *
+ * 	An optional *flags* (**BPF_LOCAL_STORAGE_GET_F_CREATE**) can be
+ * 	used such that a new bpf_local_storage will be
+ * 	created if one does not exist.  *value* can be used
+ * 	together with **BPF_LOCAL_STORAGE_GET_F_CREATE** to specify
+ * 	the initial value of a bpf_local_storage.  If *value* is
+ * 	**NULL**, the new bpf_local_storage will be zero initialized.
  *
  * Returns
- * 	The helper returns Send packet reset success.
+ * 	A bpf_local_storage pointer is returned on success.
+ *
+ * 	**NULL** if not found or there was an error in adding
+ * 	a new bpf_local_storage.
  */
-static int (*bpf_sock_tcp_send_reset)(struct __sk_buff *skb) = (void *) 500;
-
+static void *(*bpf_task_storage_get)(void *map, struct task_struct *task, void *value, __u64 flags) = (void *) 212;
+ 
 /*
- * bpf_sock_destroy
+ * bpf_task_storage_delete
  *
- * 	Destroy the given socket with ECONNABORTED error code.
- *  The function expects a non-NULL pointer to a socket, and invokes the
- *  protocol specific socket destroy handlers.
- *
- *  The helper can only be called from BPF contexts that have acquired the socket
- *  locks.
+ * 	Delete a bpf_local_storage from a *task*.
  *
  * Returns
- * 	On error, may return EPROTONOSUPPORT, EINVAL.
- *  EPROTONOSUPPORT if protocol specific destroy handler is not supported.
- * 	0 otherwise.
+ * 	0 on success.
+ *
+ * 	**-ENOENT** if the bpf_local_storage cannot be found.
  */
-static int (*bpf_sock_destroy)(struct __sk_buff *skb) = (void *) 501;
+static long (*bpf_task_storage_delete)(void *map, struct task_struct *task) = (void *) 213;

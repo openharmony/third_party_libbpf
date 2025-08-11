@@ -5835,8 +5835,8 @@ union bpf_attr {
 	FN(per_cpu_ptr, 153, ##ctx)			\
 	FN(this_cpu_ptr, 154, ##ctx)			\
 	FN(redirect_peer, 155, ##ctx)			\
-	FN(task_storage_get, 156, ##ctx)		\
-	FN(task_storage_delete, 157, ##ctx)		\
+	FN(sock_tcp_send_reset, 156, ##ctx)		\
+	FN(bpf_sock_destroy, 157, ##ctx)		\
 	FN(get_current_task_btf, 158, ##ctx)		\
 	FN(bprm_opts_set, 159, ##ctx)			\
 	FN(ktime_get_coarse_ns, 160, ##ctx)		\
@@ -5891,9 +5891,9 @@ union bpf_attr {
 	FN(user_ringbuf_drain, 209, ##ctx)		\
 	FN(cgrp_storage_get, 210, ##ctx)		\
 	FN(cgrp_storage_delete, 211, ##ctx)		\
-	FN(sock_tcp_send_reset, 500, ##ctx)		\
-	FN(bpf_sock_destroy, 501, ##ctx)		\
-	/* customization from 500 */
+	FN(task_storage_get, 212, ##ctx)		\
+	FN(task_storage_delete, 213, ##ctx)		\
+	/* */
 
 /* backwards-compatibility macros for users of __BPF_FUNC_MAPPER that don't
  * know or care about integer value that is now passed as second argument
