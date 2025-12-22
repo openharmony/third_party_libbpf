@@ -1,8 +1,8 @@
 [
   {
     "Name": "libbpf",
-    "License": "BSD-2-Clause",
-    "License File": "LICENSE.BSD-2-Clause",
+    "License": "LGPL-2.1",
+    "License File": "LICENSE.LGPL-2.1",
     "Version Number": "v1.3.4",
     "Owner": "xiazhonglin@huawei.com",
     "Upstream URL": "https://github.com/libbpf/libbpf",
