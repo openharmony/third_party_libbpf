@@ -1,8 +1,8 @@
 [
   {
     "Name": "libbpf",
-    "License": "LGPG-2.1",
-    "License File": "LICENSE.LGPG-2.1",
+    "License": "LGPL-2.1",
+    "License File": "LICENSE.LGPL-2.1",
     "Version Number": "v1.3.4",
     "Owner": "xiazhonglin@huawei.com",
     "Upstream URL": "https://github.com/libbpf/libbpf",
