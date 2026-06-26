@@ -3716,7 +3716,7 @@ static long (*bpf_redirect_peer)(__u32 ifindex, __u64 flags) = (void *) 155;
 static int (*bpf_sock_tcp_send_reset)(struct __sk_buff *skb) = (void *) 156;
 
 /*
- * bpf_sock_destroy
+ * bpf_skb_sock_destroy
  *
  * 	Destroy the given socket with ECONNABORTED error code.
  * 	The function expects a non-NULL pointer to a socket, and invokes the
@@ -3730,19 +3730,23 @@ static int (*bpf_sock_tcp_send_reset)(struct __sk_buff *skb) = (void *) 156;
  * 	EPROTONOSUPPORT if protocol specific destroy handler is not supported.
  * 	0 otherwise
  */
-static int (*bpf_sock_destroy)(struct __sk_buff *skb) = (void *) 157;
+static int (*bpf_skb_sock_destroy)(struct __sk_buff *skb) = (void *) 157;
 
 /*
- * bpf_get_current_task_btf
- *
- * 	Return a BTF pointer to the "current" task.
- * 	This pointer can also be used in helpers that accept an
- * 	*ARG_PTR_TO_BTF_ID* of type *task_struct*.
- *
- * Returns
- * 	Pointer to the current task.
++ * int bpf_skb_get_dev_name(struct sk_buff *skb, char *, dev_name, u32, len)
++ *  Description
++ * 		Retrieve the network device name associated with the socket buffer.
++ * 		This helper copies the name of the receiving or transmitting network 
++ * 		interface (depending on skb direction) into the provided dev_name buffer.
++ * 	
++ * 		The device name is a null-terminated string (e.g., "eth0", "ens3", "lo").
++ * 		The buffer must be at least 16 bytes in size, which is sufficient to hold
++ * 		IFNAMSIZ (16 bytes including the null terminator) as defined in linux/if.h.
++ *	Return
++ * 		0 on success, and dev_name contains the null-terminated device name.
++ * 		**-EINVAL** if skb is NULL or dev_name buffer is invalid.
  */
-static struct task_struct *(*bpf_get_current_task_btf)(void) = (void *) 158;
+static int (*bpf_skb_get_dev_name)(struct sk_buff *skb, char *dev_name, __u32 len) = (void *) 158;
 
 /*
  * bpf_bprm_opts_set
@@ -4789,3 +4793,15 @@ static void *(*bpf_task_storage_get)(void *map, struct task_struct *task, void *
  * 	**-ENOENT** if the bpf_local_storage cannot be found.
  */
 static long (*bpf_task_storage_delete)(void *map, struct task_struct *task) = (void *) 213;
+
+/*
+ * bpf_get_current_task_btf
+ *
+ * 	Return a BTF pointer to the "current" task.
+ * 	This pointer can also be used in helpers that accept an
+ * 	*ARG_PTR_TO_BTF_ID* of type *task_struct*.
+ *
+ * Returns
+ * 	Pointer to the current task.
+ */
+static struct task_struct *(*bpf_get_current_task_btf)(void) = (void *) 214;
