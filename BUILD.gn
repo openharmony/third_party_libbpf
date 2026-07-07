@@ -51,7 +51,7 @@ ohos_shared_library("libbpf") {
   branch_protector_ret = "pac_ret"
   external_deps = [
     "elfio:elfio",
-    "zlib:libz"
+    "zlib:shared_libz"
   ]
   sources = [
     "./src/bpf.c",
