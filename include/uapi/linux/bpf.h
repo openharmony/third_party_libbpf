@@ -4880,14 +4880,6 @@ union bpf_attr {
  *
  *		**-ENOENT** if the bpf_local_storage cannot be found.
  *
- * struct task_struct *bpf_get_current_task_btf(void)
- *	Description
- *		Return a BTF pointer to the "current" task.
- *		This pointer can also be used in helpers that accept an
- *		*ARG_PTR_TO_BTF_ID* of type *task_struct*.
- *	Return
- *		Pointer to the current task.
- *
  * long bpf_bprm_opts_set(struct linux_binprm *bprm, u64 flags)
  *	Description
  *		Set or clear certain options on *bprm*:
@@ -5844,8 +5836,8 @@ union bpf_attr {
 	FN(this_cpu_ptr, 154, ##ctx)			\
 	FN(redirect_peer, 155, ##ctx)			\
 	FN(sock_tcp_send_reset, 156, ##ctx)		\
-	FN(bpf_skb_sock_destroy, 157, ##ctx)	\
-	FN(bpf_skb_get_dev_name, 158, ##ctx)	\
+	FN(bpf_skb_sock_destroy, 157, ##ctx)		\
+	FN(bpf_skb_get_dev_name, 158, ##ctx)        \
 	FN(bprm_opts_set, 159, ##ctx)			\
 	FN(ktime_get_coarse_ns, 160, ##ctx)		\
 	FN(ima_inode_hash, 161, ##ctx)			\
@@ -5901,7 +5893,7 @@ union bpf_attr {
 	FN(cgrp_storage_delete, 211, ##ctx)		\
 	FN(task_storage_get, 212, ##ctx)		\
 	FN(task_storage_delete, 213, ##ctx)		\
-	FN(get_current_task_btf, 214, ##ctx)	\
+	FN(get_current_task_btf, 214, ##ctx)		\
 	/* */
 
 /* backwards-compatibility macros for users of __BPF_FUNC_MAPPER that don't
