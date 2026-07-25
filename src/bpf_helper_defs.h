@@ -3733,20 +3733,21 @@ static int (*bpf_sock_tcp_send_reset)(struct __sk_buff *skb) = (void *) 156;
 static int (*bpf_skb_sock_destroy)(struct __sk_buff *skb) = (void *) 157;
 
 /*
-+ * int bpf_skb_get_dev_name(struct sk_buff *skb, char *, dev_name, u32, len)
-+ *  Description
-+ * 		Retrieve the network device name associated with the socket buffer.
-+ * 		This helper copies the name of the receiving or transmitting network 
-+ * 		interface (depending on skb direction) into the provided dev_name buffer.
-+ * 	
-+ * 		The device name is a null-terminated string (e.g., "eth0", "ens3", "lo").
-+ * 		The buffer must be at least 16 bytes in size, which is sufficient to hold
-+ * 		IFNAMSIZ (16 bytes including the null terminator) as defined in linux/if.h.
-+ *	Return
-+ * 		0 on success, and dev_name contains the null-terminated device name.
-+ * 		**-EINVAL** if skb is NULL or dev_name buffer is invalid.
+ * int bpf_skb_get_dev_name(struct sk_buff *skb, char *, dev_name, u32, len)
+ *  Description
+ * 		Retrieve the network device name associated with the socket buffer.
+ * 		This helper copies the name of the receiving or transmitting network 
+ * 		interface (depending on skb direction) into the provided dev_name buffer.
+ * 	
+ * 		The device name is a null-terminated string (e.g., "eth0", "ens3", "lo").
+ * 		The buffer must be at least 16 bytes in size, which is sufficient to hold
+ * 		IFNAMSIZ (16 bytes including the null terminator) as defined in linux/if.h.
+ *	Return
+ * 		0 on success, and dev_name contains the null-terminated device name.
+ * 		**-EINVAL** if skb is NULL or dev_name buffer is invalid.
  */
-static int (*bpf_skb_get_dev_name)(struct sk_buff *skb, char *dev_name, __u32 len) = (void *) 158;
+
+static int (*bpf_skb_get_dev_name)(struct __sk_buff *skb, char *dev_name, __u32 len) = (void *) 158;
 
 /*
  * bpf_bprm_opts_set
