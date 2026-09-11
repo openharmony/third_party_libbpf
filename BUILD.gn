@@ -53,6 +53,7 @@ ohos_shared_library("libbpf") {
     "elfio:elfio",
     "zlib:shared_libz"
   ]
+  version_script = "src/libbpf.map"
   sources = [
     "./src/bpf.c",
     "./src/bpf.h",
